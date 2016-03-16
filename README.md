@@ -51,4 +51,5 @@ This what I really want to happen:
 # Contributions
 
 Luke A. Guest
-<Add your name here>
+
+Add your name here
