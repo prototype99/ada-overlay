@@ -826,11 +826,20 @@ toolchain_src_configure() {
 	if in_iuse ada ; then
 	   	export GNATBOOT=${WORKDIR}/usr
 		export BINPATH="${GNATBOOT}/bin:${BINPATH}"
+		# The next line points to where cc1/gnat1 are.
+		export COMPILER_PATH="${GNATBOOT}/bin"
 		export GNATLIB="${GNATBOOT}/lib"
 		export LIBPATH="${GNATLIB}:$(LIBPATH)"
+		export CPATH="${GNATLIB}/include"
 		export CC="${GNATBOOT}/bin/gnatgcc"
+		export LD_LIBRARY_PATH="${GNATBOOT}/lib/adalib:${LD_LIBRARY_PATH}"
 		export ADA_OBJECTS_PATH="${GNATLIB}/adalib"
 		export ADA_INCLUDE_PATH="${GNATLIB}/adainclude"
+		export LDFLAGS="-L${GNATLIB}"
+		# The next line points to where the compiler finds it's libs and crt* files
+		export LIBRARY_PATH="${GNATLIB}"
+		# We need to tell the system about our cross compiler!
+		export PATH="${GNATBOOT}/bin:${PATH}"
 	fi
 
 	# Force internal zip based jar script to avoid random
