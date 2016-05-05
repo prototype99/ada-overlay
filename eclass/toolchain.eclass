@@ -830,7 +830,7 @@ toolchain_src_configure() {
 		export COMPILER_PATH="${GNATBOOT}/bin"
 		export GNATLIB="${GNATBOOT}/lib"
 		export LIBPATH="${GNATLIB}:$(LIBPATH)"
-		export CPATH="${GNATLIB}/include"
+		#export CPATH="${GNATLIB}/include"
 		export CC="${GNATBOOT}/bin/gnatgcc"
 		export LD_LIBRARY_PATH="${GNATBOOT}/lib/adalib:${LD_LIBRARY_PATH}"
 		export ADA_OBJECTS_PATH="${GNATLIB}/adalib"
