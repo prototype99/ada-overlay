@@ -162,10 +162,10 @@ IUSE+=" ada"
 IUSE+=" ${IUSE_DEF[*]/#/+}"
 
 # If using Ada, using this bootstrap version.
-GNAT_BOOTSTRAP_VERSION="4.4"
-GNAT_BOOTSTRAP_SRC_URI=" amd64? ( https://dev.gentoo.org/~george/src/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.bz2 )
-			 sparc? ( https://dev.gentoo.org/~george/src/gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2 )
-			 x86?   ( https://dev.gentoo.org/~george/src/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.bz2 )"
+GNAT_BOOTSTRAP_VERSION="4.9"
+GNAT_BOOTSTRAP_SRC_URI=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
+						 x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
+						 # sparc? ( https://dev.gentoo.org/~george/src/gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2 )"
 
 # Support upgrade paths here or people get pissed
 if ! tc_version_is_at_least 4.8 || is_crosscompile || use multislot || [[ ${GCC_PV} == *_alpha* ]] ; then
@@ -434,18 +434,18 @@ gcc_quick_unpack() {
 	# Unpack the Ada bootstrap if we're using it.
 	if in_iuse ada ; then
 		case $(tc-arch) in
-			sparc)
-			   	echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2"
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2
-				;;
 			amd64)
-			   	echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.bz2"
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.bz2
+				echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz"
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz
 				;;
 			x86)
-			   	echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.bz2"
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.bz2
+				echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz"
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz
 				;;
+			# sparc)
+			# 	echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2"
+			# 	unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2
+			# 	;;
 		esac
 	fi
 
@@ -672,8 +672,8 @@ make_gcc_hard() {
 	# Need to add HARD_CFLAGS to ALL_CXXFLAGS on >= 4.7
 	if tc_version_is_at_least 4.7 ; then
 		sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
-                        -e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
-                        -i "${S}"/gcc/Makefile.in
+						-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
+						-i "${S}"/gcc/Makefile.in
 	fi
 
 	# defaults to enable for all toolchains
@@ -824,14 +824,15 @@ toolchain_src_configure() {
 
 	# Add variables we need to make the build find the bootstrap compiler.
 	if in_iuse ada ; then
-	   	export GNATBOOT=${WORKDIR}/usr
+		export GNATBOOT=${WORKDIR}/usr
 		export BINPATH="${GNATBOOT}/bin:${BINPATH}"
-		# The next line points to where cc1/gnat1 are.
-		export COMPILER_PATH="${GNATBOOT}/bin"
+		# The next line points to where bootstrap compilers are.
+		#export COMPILER_PATH="${GNATBOOT}/bin"
 		export GNATLIB="${GNATBOOT}/lib"
-		export LIBPATH="${GNATLIB}:$(LIBPATH)"
+		#export LIBPATH="${GNATLIB}:$(LIBPATH)"
 		#export CPATH="${GNATLIB}/include"
 		export CC="${GNATBOOT}/bin/gnatgcc"
+		export CXX="${GNATBOOT}/bin/gnatg++"
 		export LD_LIBRARY_PATH="${GNATBOOT}/lib/adalib:${LD_LIBRARY_PATH}"
 		export ADA_OBJECTS_PATH="${GNATLIB}/adalib"
 		export ADA_INCLUDE_PATH="${GNATLIB}/adainclude"
@@ -840,6 +841,11 @@ toolchain_src_configure() {
 		export LIBRARY_PATH="${GNATLIB}"
 		# We need to tell the system about our cross compiler!
 		export PATH="${GNATBOOT}/bin:${PATH}"
+
+		# TODO: Added CC CXX vars to EXTRA_ECONF
+		# TODO: Don't use export if possible.
+		# TODO: Use configure parameters like --with-stage1-libs= and --with-boot-ldflags=
+		# TODO: Unpack the bootstrap compiler into work/ada-bootstrap.
 	fi
 
 	# Force internal zip based jar script to avoid random
@@ -1110,7 +1116,7 @@ toolchain_src_configure() {
 		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
 		# See if this is a valid --with-arch flag
 		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
-		    . "${srcdir}"/config.gcc) &>/dev/null
+			. "${srcdir}"/config.gcc) &>/dev/null
 		then
 			confgcc+=( --with-arch=${arm_arch} )
 		fi
