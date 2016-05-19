@@ -152,30 +152,25 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" cilk"
-	tc_version_is_at_least 5.0 && IUSE+=" jit"
+	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv ada"
+	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
 	tc_version_is_at_least 6.0 && IUSE+=" pie +ssp"
 fi
 
-IUSE+=" ada"
-
 IUSE+=" ${IUSE_DEF[*]/#/+}"
 
-# If using Ada, using this bootstrap version.
-GNAT_BOOTSTRAP_VERSION="4.9"
-GNAT_BOOTSTRAP_SRC_URI=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
-						 x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
-						 # sparc? ( https://dev.gentoo.org/~george/src/gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2 )"
+SLOT="${GCC_CONFIG_VER}"
 
-# Support upgrade paths here or people get pissed
-if ! tc_version_is_at_least 4.8 || is_crosscompile || use multislot || [[ ${GCC_PV} == *_alpha* ]] ; then
-	SLOT="${GCC_CONFIG_VER}"
-elif ! tc_version_is_at_least 5.0 ; then
-	SLOT="${GCC_BRANCH_VER}"
-else
-	# Upstream changed versioning w/gcc-5+, so SLOT matches major only. #555164
-	SLOT="${GCCMAJOR}"
+# If using Ada, using this bootstrap version.
+# TODO: There must be a way to just extract the major.minor version from PV
+# If this is not the first time Ada has been built into GCC, so we can
+# just use the system compiler.
+if [[ ! -f `which gnatbind 2>&1|tee /dev/null` ]]; then
+	# First time build, so need to bootstrap this.
+	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
+	GNAT_STRAP_DIR="${WORKDIR}/gnat_strap"
 fi
+
 
 #---->> DEPEND <<----
 
@@ -371,8 +366,9 @@ get_gcc_src_uri() {
 		fi
 	fi
 
-	if in_iuse ada ; then
-		GCC_SRC_URI+=${GNAT_BOOTSTRAP_SRC_URI}
+	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
+		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
+					   x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
 	fi
 
 	echo "${GCC_SRC_URI}"
@@ -421,6 +417,26 @@ toolchain_src_unpack() {
 	else
 		gcc_quick_unpack
 	fi
+
+	# Unpack the Ada bootstrap if we're using it.
+	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
+		if [ ! -d ${GNAT_STRAP_DIR} ]; then
+			mkdir -p ${GNAT_STRAP_DIR} > /dev/null
+		fi
+
+		pushd ${GNAT_STRAP_DIR} > /dev/null
+
+		case $(tc-arch) in
+			amd64)
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz
+				;;
+			x86)
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz
+				;;
+		esac
+
+		popd > /dev/null
+	fi
 }
 
 gcc_quick_unpack() {
@@ -430,24 +446,6 @@ gcc_quick_unpack() {
 	export PIE_GCC_VER=${PIE_GCC_VER:-${GCC_RELEASE_VER}}
 	export HTB_GCC_VER=${HTB_GCC_VER:-${GCC_RELEASE_VER}}
 	export SPECS_GCC_VER=${SPECS_GCC_VER:-${GCC_RELEASE_VER}}
-
-	# Unpack the Ada bootstrap if we're using it.
-	if in_iuse ada ; then
-		case $(tc-arch) in
-			amd64)
-				echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz"
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz
-				;;
-			x86)
-				echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz"
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz
-				;;
-			# sparc)
-			# 	echo "Unpacking gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2"
-			# 	unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-sparc.tar.bz2
-			# 	;;
-		esac
-	fi
 
 	if [[ -n ${GCC_A_FAKEIT} ]] ; then
 		unpack ${GCC_A_FAKEIT}
@@ -822,32 +820,6 @@ toolchain_src_configure() {
 	einfo "CXXFLAGS=\"${CXXFLAGS}\""
 	einfo "LDFLAGS=\"${LDFLAGS}\""
 
-	# Add variables we need to make the build find the bootstrap compiler.
-	if in_iuse ada ; then
-		export GNATBOOT=${WORKDIR}/usr
-		export BINPATH="${GNATBOOT}/bin:${BINPATH}"
-		# The next line points to where bootstrap compilers are.
-		#export COMPILER_PATH="${GNATBOOT}/bin"
-		export GNATLIB="${GNATBOOT}/lib"
-		#export LIBPATH="${GNATLIB}:$(LIBPATH)"
-		#export CPATH="${GNATLIB}/include"
-		export CC="${GNATBOOT}/bin/gnatgcc"
-		export CXX="${GNATBOOT}/bin/gnatg++"
-		export LD_LIBRARY_PATH="${GNATBOOT}/lib/adalib:${LD_LIBRARY_PATH}"
-		export ADA_OBJECTS_PATH="${GNATLIB}/adalib"
-		export ADA_INCLUDE_PATH="${GNATLIB}/adainclude"
-		export LDFLAGS="-L${GNATLIB}"
-		# The next line points to where the compiler finds it's libs and crt* files
-		export LIBRARY_PATH="${GNATLIB}"
-		# We need to tell the system about our cross compiler!
-		export PATH="${GNATBOOT}/bin:${PATH}"
-
-		# TODO: Added CC CXX vars to EXTRA_ECONF
-		# TODO: Don't use export if possible.
-		# TODO: Use configure parameters like --with-stage1-libs= and --with-boot-ldflags=
-		# TODO: Unpack the bootstrap compiler into work/ada-bootstrap.
-	fi
-
 	# Force internal zip based jar script to avoid random
 	# issues with 3rd party jar implementations.  #384291
 	export JAR=no
@@ -868,6 +840,49 @@ toolchain_src_configure() {
 		confgcc+=( --target=${CTARGET} )
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=( --build=${CBUILD} )
+
+	# Add variables we need to make the build find the bootstrap compiler.
+	# We only want to use the bootstrap compiler for stage 1 of bootstrap, this will build the necessary compilers,
+	# then stage 2 uses these compilers.
+	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
+		export GNATBOOT=${GNAT_STRAP_DIR}/usr
+		# export BINPATH="${GNATBOOT}/bin:${BINPATH}"
+		# # The next line points to where bootstrap compilers are.
+		# #export COMPILER_PATH="${GNATBOOT}/bin"
+		# export GNATLIB="${GNATBOOT}/lib"
+		# #export LIBPATH="${GNATLIB}:$(LIBPATH)"
+		# #export CPATH="${GNATLIB}/include"
+		# export CC="${GNATBOOT}/bin/gnatgcc"
+		# export CXX="${GNATBOOT}/bin/gnatg++"
+		# export LD_LIBRARY_PATH="${GNATBOOT}/lib/adalib:${LD_LIBRARY_PATH}"
+		# export ADA_OBJECTS_PATH="${GNATLIB}/adalib"
+		# export ADA_INCLUDE_PATH="${GNATLIB}/adainclude"
+		# export LDFLAGS="-L${GNATLIB}"
+		# # The next line points to where the compiler finds it's libs and crt* files
+		# export LIBRARY_PATH="${GNATLIB}"
+		# # We need to tell the system about our cross compiler!
+		export PATH="${GNATBOOT}/bin:${PATH}"
+
+		# TODO: Added CC CXX vars to EXTRA_ECONF
+		# TODO: Don't use export if possible.
+		# TODO: Use configure parameters like --with-stage1-libs= and --with-boot-ldflags=
+		# TODO: Unpack the bootstrap compiler into work/ada-bootstrap.
+		EXTRA_ECONF+=(
+			CC=${GNATBOOT}/bin/gnatgcc
+			CXX=${GNATBOOT}/bin/gnatg++
+			AR=${GNATBOOT}/bin/ar
+			AS=${GNATBOOT}/bin/as
+			LD=${GNATBOOT}/bin/ld
+			NM=${GNATBOOT}/bin/nm
+			RANLIB=${GNATBOOT}/bin/ranlib
+		)
+
+		# confgcc+=(
+		# 	--with-stage1-ldflags="-L${GNATBOOT}/lib -L${GNATBOOT}/lib64"
+		# )
+
+		einfo "EXTRA_ECONF=\"${EXTRA_ECONF}\""
+	fi
 
 	confgcc+=(
 		--prefix="${PREFIX}"
@@ -915,7 +930,7 @@ toolchain_src_configure() {
 	is_f77 && GCC_LANG+=",f77"
 	is_f95 && GCC_LANG+=",f95"
 
-	# We do want 'ADA support' in here!
+	# We do NOT want 'ADA support' in here!
 	is_ada && GCC_LANG+=",ada"
 
 	confgcc+=( --enable-languages=${GCC_LANG} )
@@ -1227,6 +1242,17 @@ toolchain_src_configure() {
 
 	if in_iuse cilk ; then
 		confgcc+=( $(use_enable cilk libcilkrts) )
+	fi
+
+	if in_iuse mpx ; then
+		confgcc+=( $(use_enable mpx libmpx) )
+	fi
+
+	if in_iuse vtv ; then
+		confgcc+=(
+			$(use_enable vtv vtable-verify)
+			$(use_enable vtv libvtv)
+		)
 	fi
 
 	# newer gcc's come with libquadmath, but only fortran uses
@@ -1748,10 +1774,12 @@ toolchain_src_install() {
 			ln -sf ${CTARGET}-${x} ${CTARGET}-${x}-${GCC_CONFIG_VER}
 		fi
 	done
-	# Clear out the main go binaries as we don't want to clobber dev-lang/go
+	# Rename the main go binaries as we don't want to clobber dev-lang/go
 	# when gcc-config runs. #567806
 	if tc_version_is_at_least 5 && is_go ; then
-		rm -f go gofmt
+		for x in go gofmt; do
+			mv ${x} ${x}-${GCCMAJOR} || die
+		done
 	fi
 
 	# Now do the fun stripping stuff
@@ -1796,12 +1824,48 @@ toolchain_src_install() {
 	if ! is_crosscompile ; then
 		insinto "${DATAPATH}"
 		newins "${GCC_FILESDIR}"/awk/fixlafiles.awk-no_gcc_la fixlafiles.awk || die
-		find "${D}/${LIBPATH}" -name libstdc++.la -type f -delete
-		find "${D}/${LIBPATH}" -name 'lib*san.la' -type f -delete #487550 #546700
 		exeinto "${DATAPATH}"
 		doexe "${GCC_FILESDIR}"/fix_libtool_files.sh || die
 		doexe "${GCC_FILESDIR}"/c{89,99} || die
 	fi
+
+	# libstdc++.la: Delete as it doesn't add anything useful: g++ itself
+	# handles linkage correctly in the dynamic & static case.  It also just
+	# causes us pain: any C++ progs/libs linking with libtool will gain a
+	# reference to the full libstdc++.la file which is gcc version specific.
+	# libstdc++fs.la: It doesn't link against anything useful.
+	# libsupc++.la: This has no dependencies.
+	# libcc1.la: There is no static library, only dynamic.
+	# libcc1plugin.la: Same as above, and it's loaded via dlopen.
+	# libgomp.la: gcc itself handles linkage (libgomp.spec).
+	# libgomp-plugin-*.la: Same as above, and it's an internal plugin only
+	# loaded via dlopen.
+	# libgfortran.la: gfortran itself handles linkage correctly in the
+	# dynamic & static case (libgfortran.spec). #573302
+	# libgfortranbegin.la: Same as above, and it's an internal lib.
+	# libmpx.la: gcc itself handles linkage correctly (libmpx.spec).
+	# libmpxwrappers.la: See above.
+	# libitm.la: gcc itself handles linkage correctly (libitm.spec).
+	# libvtv.la: gcc itself handles linkage correctly.
+	# lib*san.la: Sanitizer linkage is handled internally by gcc, and they
+	# do not support static linking. #487550 #546700
+	find "${D}/${LIBPATH}" \
+		'(' \
+			-name libstdc++.la -o \
+			-name libstdc++fs.la -o \
+			-name libsupc++.la -o \
+			-name libcc1.la -o \
+			-name libcc1plugin.la -o \
+			-name 'libgomp.la' -o \
+			-name 'libgomp-plugin-*.la' -o \
+			-name libgfortran.la -o \
+			-name libgfortranbegin.la -o \
+			-name libmpx.la -o \
+			-name libmpxwrappers.la -o \
+			-name libitm.la -o \
+			-name libvtv.la -o \
+			-name 'lib*san.la' \
+		')' -type f -delete
 
 	# Use gid of 0 because some stupid ports don't have
 	# the group 'root' set to gid 0.  Send to /dev/null
@@ -2112,26 +2176,36 @@ do_gcc_config() {
 		return 0
 	fi
 
-	local current_gcc_config="" current_specs="" use_specs=""
+	local current_gcc_config target
 
 	current_gcc_config=$(env -i ROOT="${ROOT}" gcc-config -c ${CTARGET} 2>/dev/null)
 	if [[ -n ${current_gcc_config} ]] ; then
+		local current_specs use_specs
 		# figure out which specs-specific config is active
 		current_specs=$(gcc-config -S ${current_gcc_config} | awk '{print $3}')
 		[[ -n ${current_specs} ]] && use_specs=-${current_specs}
-	fi
-	if [[ -n ${use_specs} ]] && \
-	   [[ ! -e ${ROOT}/etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}${use_specs} ]]
-	then
-		ewarn "The currently selected specs-specific gcc config,"
-		ewarn "${current_specs}, doesn't exist anymore. This is usually"
-		ewarn "due to enabling/disabling hardened or switching to a version"
-		ewarn "of gcc that doesnt create multiple specs files. The default"
-		ewarn "config will be used, and the previous preference forgotten."
-		use_specs=""
+
+		if [[ -n ${use_specs} ]] && \
+		   [[ ! -e ${ROOT}/etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}${use_specs} ]]
+		then
+			ewarn "The currently selected specs-specific gcc config,"
+			ewarn "${current_specs}, doesn't exist anymore. This is usually"
+			ewarn "due to enabling/disabling hardened or switching to a version"
+			ewarn "of gcc that doesnt create multiple specs files. The default"
+			ewarn "config will be used, and the previous preference forgotten."
+			use_specs=""
+		fi
+
+		target="${CTARGET}-${GCC_CONFIG_VER}${use_specs}"
+	else
+		# The curent target is invalid.  Attempt to switch to a valid one.
+		# Blindly pick the latest version.  #529608
+		# TODO: Should update gcc-config to accept `-l ${CTARGET}` rather than
+		# doing a partial grep like this.
+		target=$(gcc-config -l 2>/dev/null | grep " ${CTARGET}-[0-9]" | tail -1 | awk '{print $2}')
 	fi
 
-	gcc-config ${CTARGET}-${GCC_CONFIG_VER}${use_specs}
+	gcc-config "${target}"
 }
 
 should_we_gcc_config() {
