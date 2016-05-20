@@ -1748,7 +1748,11 @@ toolchain_src_install() {
 	cd "${D}"${BINPATH}
 	# Ugh: we really need to auto-detect this list.
 	#      It's constantly out of date.
-	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ; do
+	if in_iuse ada ; then
+		GNAT_EXTRA_BINS="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
+	fi
+
+	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${GNAT_EXTRA_BINS}; do
 		# For some reason, g77 gets made instead of ${CTARGET}-g77...
 		# this should take care of that
 		if [[ -f ${x} ]] ; then
