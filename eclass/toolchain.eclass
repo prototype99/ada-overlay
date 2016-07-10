@@ -131,7 +131,7 @@ else
 	LICENSE="GPL-2+ LGPL-2.1+ FDL-1.1+"
 fi
 
-IUSE="multislot regression-test vanilla"
+IUSE="regression-test vanilla"
 IUSE_DEF=( nls nptl )
 
 if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
@@ -168,7 +168,6 @@ if [[ ! -f `which gnatbind 2>&1|tee /dev/null` ]]; then
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	GNAT_STRAP_DIR="${WORKDIR}/gnat_strap"
 fi
-
 
 #---->> DEPEND <<----
 
@@ -1726,11 +1725,12 @@ toolchain_src_install() {
 	cd "${D}"${BINPATH}
 	# Ugh: we really need to auto-detect this list.
 	#      It's constantly out of date.
+
 	if in_iuse ada ; then
 		GNAT_EXTRA_BINS="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
 	fi
 
-	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${GNAT_EXTRA_BINS}; do
+	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${GNAT_EXTRA_BINS} ; do
 		# For some reason, g77 gets made instead of ${CTARGET}-g77...
 		# this should take care of that
 		if [[ -f ${x} ]] ; then
@@ -2202,10 +2202,6 @@ should_we_gcc_config() {
 	local curr_config_ver=$(env -i ROOT="${ROOT}" gcc-config -S ${curr_config} | awk '{print $2}')
 
 	local curr_branch_ver=$(get_version_component_range 1-2 ${curr_config_ver})
-
-	# If we're using multislot, just run gcc-config if we're installing
-	# to the same profile as the current one.
-	use multislot && return $([[ ${curr_config_ver} == ${GCC_CONFIG_VER} ]])
 
 	if [[ ${curr_branch_ver} == ${GCC_BRANCH_VER} ]] ; then
 		return 0
