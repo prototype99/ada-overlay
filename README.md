@@ -21,12 +21,9 @@ using the installed system compiler (which includes GNAT!). I've also tested bui
 build ada, but I had to:
 
 1. Install the "ebuild's" to where I had my ada overlay so it would pick up the correct toolchain.eclass,
-
 ```crossdev --ov-output /usr/local/overlays/ada i686-w64-mingw32```
-
 2. I didn't really need to do this, but I didn't want to build the stage2 twice, so I stopped the build after stage1-gcc
    was built and added the ada USE flag,
-
 ```echo "cross-i686-w64-mingw32/gcc ada -fortran -vtv -sanitize" >> /etc/portage/package.use/cross-i686-w64-mingw32-gcc```
 
 Once you have this overlay somewhere and you've added the following to ```/etc/portage/repos.conf/local.conf``` or similar:
