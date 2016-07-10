@@ -161,10 +161,8 @@ IUSE+=" ${IUSE_DEF[*]/#/+}"
 
 SLOT="${GCC_CONFIG_VER}"
 
-# If using Ada, using this bootstrap version.
-# TODO: There must be a way to just extract the major.minor version from PV
-# If this is not the first time Ada has been built into GCC, so we can
-# just use the system compiler.
+# If using Ada, use this bootstrap compiler to build, only when there is not existing compiler.
+# Support nothing before 4.9.x series.
 if [[ ! -f `which gnatbind 2>&1|tee /dev/null` ]]; then
 	# First time build, so need to bootstrap this.
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
@@ -844,29 +842,13 @@ toolchain_src_configure() {
 	# Add variables we need to make the build find the bootstrap compiler.
 	# We only want to use the bootstrap compiler for stage 1 of bootstrap, this will build the necessary compilers,
 	# then stage 2 uses these compilers.
+	#
+	# We only want to use the bootstrap when we don't have an already installed GNAT compiler.
 	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
+		# We need to tell the system about our cross compiler!
 		export GNATBOOT=${GNAT_STRAP_DIR}/usr
-		# export BINPATH="${GNATBOOT}/bin:${BINPATH}"
-		# # The next line points to where bootstrap compilers are.
-		# #export COMPILER_PATH="${GNATBOOT}/bin"
-		# export GNATLIB="${GNATBOOT}/lib"
-		# #export LIBPATH="${GNATLIB}:$(LIBPATH)"
-		# #export CPATH="${GNATLIB}/include"
-		# export CC="${GNATBOOT}/bin/gnatgcc"
-		# export CXX="${GNATBOOT}/bin/gnatg++"
-		# export LD_LIBRARY_PATH="${GNATBOOT}/lib/adalib:${LD_LIBRARY_PATH}"
-		# export ADA_OBJECTS_PATH="${GNATLIB}/adalib"
-		# export ADA_INCLUDE_PATH="${GNATLIB}/adainclude"
-		# export LDFLAGS="-L${GNATLIB}"
-		# # The next line points to where the compiler finds it's libs and crt* files
-		# export LIBRARY_PATH="${GNATLIB}"
-		# # We need to tell the system about our cross compiler!
 		export PATH="${GNATBOOT}/bin:${PATH}"
 
-		# TODO: Added CC CXX vars to EXTRA_ECONF
-		# TODO: Don't use export if possible.
-		# TODO: Use configure parameters like --with-stage1-libs= and --with-boot-ldflags=
-		# TODO: Unpack the bootstrap compiler into work/ada-bootstrap.
 		EXTRA_ECONF+=(
 			CC=${GNATBOOT}/bin/gnatgcc
 			CXX=${GNATBOOT}/bin/gnatg++
@@ -876,10 +858,6 @@ toolchain_src_configure() {
 			NM=${GNATBOOT}/bin/nm
 			RANLIB=${GNATBOOT}/bin/ranlib
 		)
-
-		# confgcc+=(
-		# 	--with-stage1-ldflags="-L${GNATBOOT}/lib -L${GNATBOOT}/lib64"
-		# )
 
 		einfo "EXTRA_ECONF=\"${EXTRA_ECONF}\""
 	fi
@@ -930,7 +908,7 @@ toolchain_src_configure() {
 	is_f77 && GCC_LANG+=",f77"
 	is_f95 && GCC_LANG+=",f95"
 
-	# We do NOT want 'ADA support' in here!
+	# We DO want 'ADA support' in here!
 	is_ada && GCC_LANG+=",ada"
 
 	confgcc+=( --enable-languages=${GCC_LANG} )
@@ -1596,11 +1574,6 @@ toolchain_src_compile() {
 		&& find "${WORKDIR}"/build -name '*.[17]' -exec touch {} +
 
 	gcc_do_make ${GCC_MAKE_TARGET}
-
-	# If building Ada, we need to build a libgnat_util.a
-	# if in_iuse ada ; then
-	# 	gnat_do_gnat_util
-	# fi
 }
 
 gcc_do_make() {
@@ -1682,16 +1655,6 @@ gcc_do_make() {
 
 	popd >/dev/null
 }
-
-# gnat_do_gnat_util() {
-# 	einfo "Creating libgnat_util.a"
-# 	mkdir "${WORKDIR}"/libgnat_util
-# 	pushd "${WORKDIR}"/libgnat_util > /dev/null
-
-# "${WORKDIR}"/build
-
-# 	popd > /dev/null
-# }
 
 #---->> src_test <<----
 
