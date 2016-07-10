@@ -1596,6 +1596,11 @@ toolchain_src_compile() {
 		&& find "${WORKDIR}"/build -name '*.[17]' -exec touch {} +
 
 	gcc_do_make ${GCC_MAKE_TARGET}
+
+	# If building Ada, we need to build a libgnat_util.a
+	# if in_iuse ada ; then
+	# 	gnat_do_gnat_util
+	# fi
 }
 
 gcc_do_make() {
@@ -1677,6 +1682,16 @@ gcc_do_make() {
 
 	popd >/dev/null
 }
+
+# gnat_do_gnat_util() {
+# 	einfo "Creating libgnat_util.a"
+# 	mkdir "${WORKDIR}"/libgnat_util
+# 	pushd "${WORKDIR}"/libgnat_util > /dev/null
+
+# "${WORKDIR}"/build
+
+# 	popd > /dev/null
+# }
 
 #---->> src_test <<----
 
