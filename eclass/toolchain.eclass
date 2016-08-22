@@ -141,7 +141,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	[[ -n ${HTB_VER} ]] && IUSE+=" boundschecking"
 	[[ -n ${D_VER}   ]] && IUSE+=" d"
 	[[ -n ${SPECS_VER} ]] && IUSE+=" nossp"
-	tc_version_is_at_least 3 && IUSE+=" doc gcj awt hardened multilib objc"
+	tc_version_is_at_least 3 && IUSE+=" ada doc gcj awt hardened multilib objc"
 	tc_version_is_at_least 4.0 && IUSE+=" objc-gc"
 	tc_version_is_between 4.0 4.9 && IUSE+=" mudflap"
 	tc_version_is_at_least 4.1 && IUSE+=" libssp objc++"
@@ -152,7 +152,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv ada"
+	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
 	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
 	tc_version_is_at_least 6.0 && IUSE+=" pie +ssp"
 fi
@@ -161,11 +161,11 @@ IUSE+=" ${IUSE_DEF[*]/#/+}"
 
 SLOT="${GCC_CONFIG_VER}"
 
-# If using Ada, use this bootstrap compiler to build, only when there is not existing compiler.
-# Support nothing before 4.9.x series.
+# When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if [[ ! -f `which gnatbind 2>&1|tee /dev/null` ]]; then
 	# First time build, so need to bootstrap this.
-	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
+	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
+	tc_version_is_at_least 3 && GNAT_BOOTSTRAP_VERSION="4.9"
 	GNAT_STRAP_DIR="${WORKDIR}/gnat_strap"
 fi
 
@@ -418,21 +418,21 @@ toolchain_src_unpack() {
 	# Unpack the Ada bootstrap if we're using it.
 	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
 		if [ ! -d ${GNAT_STRAP_DIR} ]; then
-			mkdir -p ${GNAT_STRAP_DIR} > /dev/null
+			mkdir -p ${GNAT_STRAP_DIR} > /dev/null || die "Couldn't make GNAT bootstrap directory"
 		fi
 
-		pushd ${GNAT_STRAP_DIR} > /dev/null
+		pushd ${GNAT_STRAP_DIR} >&/dev/null || die
 
 		case $(tc-arch) in
 			amd64)
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz || die "Failed to unpack GNAT bootstrap compiler"
 				;;
 			x86)
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz || die "Failed to unpack GNAT bootstrap compiler"
 				;;
 		esac
 
-		popd > /dev/null
+		popd >&/dev/null || die
 	fi
 }
 
@@ -907,7 +907,7 @@ toolchain_src_configure() {
 	is_f77 && GCC_LANG+=",f77"
 	is_f95 && GCC_LANG+=",f95"
 
-	# We DO want 'ADA support' in here!
+	# We DO want 'Ada support' in here!
 	is_ada && GCC_LANG+=",ada"
 
 	confgcc+=( --enable-languages=${GCC_LANG} )
