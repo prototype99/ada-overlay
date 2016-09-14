@@ -1,4 +1,4 @@
-# Copyright 1999-2015 Gentoo Foundation
+# Copyright 1999-2016 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 # $Id$
 
@@ -141,7 +141,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	[[ -n ${HTB_VER} ]] && IUSE+=" boundschecking"
 	[[ -n ${D_VER}   ]] && IUSE+=" d"
 	[[ -n ${SPECS_VER} ]] && IUSE+=" nossp"
-	tc_version_is_at_least 3 && IUSE+=" ada doc gcj awt hardened multilib objc"
+	tc_version_is_at_least 3 && IUSE+=" doc gcj awt hardened multilib objc"
 	tc_version_is_at_least 4.0 && IUSE+=" objc-gc"
 	tc_version_is_between 4.0 4.9 && IUSE+=" mudflap"
 	tc_version_is_at_least 4.1 && IUSE+=" libssp objc++"
@@ -152,9 +152,9 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
+	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv"
 	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
-	tc_version_is_at_least 6.0 && IUSE+=" pie +ssp"
+	tc_version_is_at_least 6.0 && IUSE+=" pie ssp +pch"
 fi
 
 IUSE+=" ${IUSE_DEF[*]/#/+}"
@@ -162,11 +162,10 @@ IUSE+=" ${IUSE_DEF[*]/#/+}"
 SLOT="${GCC_CONFIG_VER}"
 
 # When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
-if [[ ! -f `which gnatbind 2>&1|tee /dev/null` ]]; then
+if in_iuse ada; then
 	# First time build, so need to bootstrap this.
 	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
-	tc_version_is_at_least 3 && GNAT_BOOTSTRAP_VERSION="4.9"
-	GNAT_STRAP_DIR="${WORKDIR}/gnat_strap"
+	GNAT_BOOTSTRAP_VERSION="4.9"
 fi
 
 #---->> DEPEND <<----
@@ -363,9 +362,10 @@ get_gcc_src_uri() {
 		fi
 	fi
 
-	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
+	if in_iuse ada; then
 		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
-					   x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
+					   x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )
+					   arm?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )"
 	fi
 
 	echo "${GCC_SRC_URI}"
@@ -416,23 +416,23 @@ toolchain_src_unpack() {
 	fi
 
 	# Unpack the Ada bootstrap if we're using it.
-	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
-		if [ ! -d ${GNAT_STRAP_DIR} ]; then
-			mkdir -p ${GNAT_STRAP_DIR} > /dev/null || die "Couldn't make GNAT bootstrap directory"
-		fi
-
-		pushd ${GNAT_STRAP_DIR} >&/dev/null || die
+	if in_iuse ada && ! type -P gnatbind > /dev/null; then
+		mkdir -p "${WORKDIR}/gnat_bootstrap" || die "Couldn't make GNAT bootstrap directory"
+		pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
 
 		case $(tc-arch) in
 			amd64)
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz || die "Failed to unpack GNAT bootstrap compiler"
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz || die "Failed to unpack AMD64 GNAT bootstrap compiler"
 				;;
 			x86)
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz || die "Failed to unpack GNAT bootstrap compiler"
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz || die "Failed to unpack x86 GNAT bootstrap compiler"
+				;;
+			arm)
+				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz || die "Failed to unpack ARM GNAT bootstrap compiler"
 				;;
 		esac
 
-		popd >&/dev/null || die
+		popd > /dev/null || die
 	fi
 }
 
@@ -659,6 +659,50 @@ do_gcc_PIE_patches() {
 
 # configure to build with the hardened GCC specs as the default
 make_gcc_hard() {
+
+	local gcc_hard_flags=""
+	# Gcc >= 6.X we can use configurations options to turn pie/ssp on as default
+	if tc_version_is_at_least 6.0 ; then
+		if use pie ; then
+			einfo "Updating gcc to use automatic PIE building ..."
+		fi
+		if use ssp ; then
+			einfo "Updating gcc to use automatic SSP building ..."
+		fi
+		if use hardened ; then
+			# Will add some optimatizion as default.
+			gcc_hard_flags+=" -DEXTRA_OPTIONS"
+			# rebrand to make bug reports easier
+			BRANDING_GCC_PKGVERSION=${BRANDING_GCC_PKGVERSION/Gentoo/Gentoo Hardened}
+		fi
+	else
+		if use hardened ; then
+			# rebrand to make bug reports easier
+			BRANDING_GCC_PKGVERSION=${BRANDING_GCC_PKGVERSION/Gentoo/Gentoo Hardened}
+			if hardened_gcc_works ; then
+				einfo "Updating gcc to use automatic PIE + SSP building ..."
+				gcc_hard_flags+=" -DEFAULT_PIE_SSP"
+			elif hardened_gcc_works pie ; then
+				einfo "Updating gcc to use automatic PIE building ..."
+				ewarn "SSP has not been enabled by default"
+				gcc_hard_flags+=" -DEFAULT_PIE"
+			elif hardened_gcc_works ssp ; then
+				einfo "Updating gcc to use automatic SSP building ..."
+				ewarn "PIE has not been enabled by default"
+				gcc_hard_flags+=" -DEFAULT_SSP"
+			else
+				# do nothing if hardened isn't supported, but don't die either
+				ewarn "hardened is not supported for this arch in this gcc version"
+				return 0
+			fi
+		else
+			if hardened_gcc_works ssp ; then
+				einfo "Updating gcc to use automatic SSP building ..."
+				gcc_hard_flags+=" -DEFAULT_SSP"
+			fi
+		fi
+	fi
+
 	# we want to be able to control the pie patch logic via something other
 	# than ALL_CFLAGS...
 	sed -e '/^ALL_CFLAGS/iHARD_CFLAGS = ' \
@@ -667,36 +711,8 @@ make_gcc_hard() {
 	# Need to add HARD_CFLAGS to ALL_CXXFLAGS on >= 4.7
 	if tc_version_is_at_least 4.7 ; then
 		sed -e '/^ALL_CXXFLAGS/iHARD_CFLAGS = ' \
-						-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
-						-i "${S}"/gcc/Makefile.in
-	fi
-
-	# defaults to enable for all toolchains
-	local gcc_hard_flags=""
-	if use hardened ; then
-		if hardened_gcc_works ; then
-			einfo "Updating gcc to use automatic PIE + SSP building ..."
-			gcc_hard_flags+=" -DEFAULT_PIE_SSP"
-		elif hardened_gcc_works pie ; then
-			einfo "Updating gcc to use automatic PIE building ..."
-			ewarn "SSP has not been enabled by default"
-			gcc_hard_flags+=" -DEFAULT_PIE"
-		elif hardened_gcc_works ssp ; then
-			einfo "Updating gcc to use automatic SSP building ..."
-			ewarn "PIE has not been enabled by default"
-			gcc_hard_flags+=" -DEFAULT_SSP"
-		else
-			# do nothing if hardened isn't supported, but don't die either
-			ewarn "hardened is not supported for this arch in this gcc version"
-			return 0
-		fi
-		# rebrand to make bug reports easier
-		BRANDING_GCC_PKGVERSION=${BRANDING_GCC_PKGVERSION/Gentoo/Gentoo Hardened}
-	else
-		if hardened_gcc_works ssp ; then
-			einfo "Updating gcc to use automatic SSP building ..."
-			gcc_hard_flags+=" -DEFAULT_SSP"
-		fi
+			-e 's|^ALL_CXXFLAGS = |ALL_CXXFLAGS = $(HARD_CFLAGS) |' \
+			-i "${S}"/gcc/Makefile.in
 	fi
 
 	sed -i \
@@ -843,12 +859,12 @@ toolchain_src_configure() {
 	# then stage 2 uses these compilers.
 	#
 	# We only want to use the bootstrap when we don't have an already installed GNAT compiler.
-	if in_iuse ada && [[ -n ${GNAT_STRAP_DIR} ]] ; then
+	if in_iuse ada && [[ -d ${WORKDIR}/gnat_bootstrap ]] ; then
 		# We need to tell the system about our cross compiler!
-		export GNATBOOT=${GNAT_STRAP_DIR}/usr
+		export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
 		export PATH="${GNATBOOT}/bin:${PATH}"
 
-		EXTRA_ECONF+=(
+		confgcc+=(
 			CC=${GNATBOOT}/bin/gnatgcc
 			CXX=${GNATBOOT}/bin/gnatg++
 			AR=${GNATBOOT}/bin/ar
@@ -857,8 +873,6 @@ toolchain_src_configure() {
 			NM=${GNATBOOT}/bin/nm
 			RANLIB=${GNATBOOT}/bin/ranlib
 		)
-
-		einfo "EXTRA_ECONF=\"${EXTRA_ECONF}\""
 	fi
 
 	confgcc+=(
@@ -953,6 +967,11 @@ toolchain_src_configure() {
 	# going to link in -lrt to all C++ apps.  #411681
 	if tc_version_is_at_least 4.4 && is_cxx ; then
 		confgcc+=( --enable-libstdcxx-time )
+	fi
+
+	# Support to disable pch when building libstdcxx
+	if tc_version_is_at_least 6.0 && ! use pch ; then
+		confgcc+=( --disable-libstdcxx-pch )
 	fi
 
 	# The jit language requires this.
@@ -1725,12 +1744,11 @@ toolchain_src_install() {
 	cd "${D}"${BINPATH}
 	# Ugh: we really need to auto-detect this list.
 	#      It's constantly out of date.
-
 	if in_iuse ada ; then
-		GNAT_EXTRA_BINS="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
+		local gnat_extra_bins="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
 	fi
 
-	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${GNAT_EXTRA_BINS} ; do
+	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ; do
 		# For some reason, g77 gets made instead of ${CTARGET}-g77...
 		# this should take care of that
 		if [[ -f ${x} ]] ; then
@@ -2023,6 +2041,11 @@ create_gcc_env_entry() {
 }
 
 copy_minispecs_gcc_specs() {
+	# on gcc 6 we don't need minispecs
+	if tc_version_is_at_least 6.0 ; then
+		return 0
+	fi
+
 	# setup the hardenedno* specs files and the vanilla specs file.
 	if hardened_gcc_works ; then
 		create_gcc_env_entry hardenednopiessp
@@ -2363,6 +2386,10 @@ hardened_gcc_is_stable() {
 }
 
 want_minispecs() {
+	# on gcc 6 we don't need minispecs
+	if tc_version_is_at_least 6.0 ; then
+		return 0
+	fi
 	if tc_version_is_at_least 4.3.2 && use hardened ; then
 		if ! want_pie ; then
 			ewarn "PIE_VER or SPECS_VER is not defined in the GCC ebuild."
