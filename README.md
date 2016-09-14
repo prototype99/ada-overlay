@@ -47,14 +47,16 @@ USE=ada ebuild /usr/local/overlays/ada/sys-devel/gcc/gcc-4.9.3.ebuild compile
 This what I really want to happen:
 
 1. Be able to build a system compiler including GNAT with ```USE=ada```.
-2. Build the libgnat_util inside toolchain.eclass as well. Using the same sources, so we have better version information.
-3. GPR tools, which means, ASIS, XMLAda.
-4. Further ebuild commands via an eclass to add building and installing using GPR files.
-5. Further libraries.
-6. Cross compiler using the system ebuilds. By working on the toolchain.eclass, this should get this for free!
-7. Delete all the old crap from Portage.
-8. Incorporate this layer directly into Portage so that new users get it when they install Gentoo.
-9. Other stuff not mentioned above.
+2. Modify directory locations according to Gentoo Ada policy, add this to gcc-config
+3. Build a libgnat_util and gpr file. I would prefer to use the same sources, so we can have better version information. May need to configure gcc to generate the version.c file to copy.
+4. Use [this script](https://github.com/AdaCore/gprbuild/commit/eaa3b24efeba20c3ebc1fd091fa9d78ad3a6510a) to bootstrap a gprbuild, use this to build xmlada and gprtools.
+5. ASIS, GPS, other AdaCore tools.
+6. Further ebuild commands via an eclass to add building and installing using GPR files.
+7. Further libraries.
+8. Cross compiler using the system ebuilds. By working on the toolchain.eclass, this should get this for free!
+9. Delete all the old crap from Portage.
+10. Incorporate this layer directly into Portage so that new users get it when they install Gentoo.
+11. Other stuff not mentioned above.
 
 # Contributions
 
