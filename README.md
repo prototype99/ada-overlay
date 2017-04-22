@@ -36,13 +36,31 @@ masters = gentoo
 auto-sync = no
 ```
 
-Then build using:
+Add the following to ```/etc/portage/package.use/ada.use```:
 
 ```bash
-USE=ada ebuild /usr/local/overlays/ada/sys-devel/gcc/gcc-4.9.3.ebuild compile
+=sys-devel/gcc-4.9.4::ada ada
 ```
 
+Add the following to ```/etc/portage/package.accept_keywords/ada.accept_keywords```:
+
+```bash
+=sys-devel/gcc-4.9.4::ada **
+```
+
+Then build 4.9.4 using:
+
+```bash
+emerge -av gcc
+```
+
+Once GCC-4.9.4 has been built with Ada support, you will be able to use that installed compiler as a bootstrap to update
+to newer GCC's.
+
 # Roadmap
+
+See [this bug report](https://bugs.gentoo.org/show_bug.cgi?id=592060) for the status of the inclusion of my patches to
+Gentoo's toolchain.eclass. If you want this to be added in, add a comment there saying so.
 
 This what I really want to happen:
 
