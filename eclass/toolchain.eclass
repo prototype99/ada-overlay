@@ -158,7 +158,7 @@ fi
 
 IUSE+=" ${IUSE_DEF[*]/#/+}"
 
-SLOT="${GCC_CONFIG_VER}-ada"
+SLOT="${GCC_CONFIG_VER}"
 
 # When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if in_iuse ada; then
