@@ -158,7 +158,7 @@ fi
 
 IUSE+=" ${IUSE_DEF[*]/#/+}"
 
-SLOT="${GCC_CONFIG_VER}"
+SLOT="${GCC_CONFIG_VER}-ada"
 
 # When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if in_iuse ada; then
@@ -863,14 +863,16 @@ toolchain_src_configure() {
 		export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
 		export PATH="${GNATBOOT}/bin:${PATH}"
 
+#			AS=${GNATBOOT}/bin/as
+#			LD=${GNATBOOT}/bin/ld
 		confgcc+=(
 			CC=${GNATBOOT}/bin/gnatgcc
 			CXX=${GNATBOOT}/bin/gnatg++
-			AR=${GNATBOOT}/bin/ar
-			AS=${GNATBOOT}/bin/as
-			LD=${GNATBOOT}/bin/ld
-			NM=${GNATBOOT}/bin/nm
-			RANLIB=${GNATBOOT}/bin/ranlib
+			AR=${GNATBOOT}/bin/gcc-ar
+			AS=as
+			LD=ld
+			NM=${GNATBOOT}/bin/gcc-nm
+			RANLIB=${GNATBOOT}/bin/gcc-ranlib
 		)
 	fi
 
