@@ -153,7 +153,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
 	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv"
 	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
-	tc_version_is_at_least 6.0 && IUSE+=" pie ssp +pch"
+	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 fi
 
 IUSE+=" ${IUSE_DEF[*]/#/+}"
@@ -164,6 +164,8 @@ SLOT="${GCC_CONFIG_VER}"
 if in_iuse ada; then
 	# First time build, so need to bootstrap this.
 	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
+	#
+	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0
 	GNAT_BOOTSTRAP_VERSION="4.9"
 fi
 
@@ -184,6 +186,12 @@ if tc_version_is_at_least 4 ; then
 fi
 
 tc_version_is_at_least 4.5 && RDEPEND+=" >=dev-libs/mpc-0.8.1:0"
+
+if in_iuse objc-gc ; then
+	if tc_version_is_at_least 7 ; then
+		RDEPEND+=" objc-gc? ( >=dev-libs/boehm-gc-7.4.2 )"
+	fi
+fi
 
 if in_iuse graphite ; then
 	if tc_version_is_at_least 5.0 ; then
@@ -240,7 +248,8 @@ S=$(
 
 gentoo_urls() {
 	local devspace="HTTP~vapier/dist/URI HTTP~rhill/dist/URI
-	HTTP~zorry/patches/gcc/URI HTTP~blueness/dist/URI"
+	HTTP~zorry/patches/gcc/URI HTTP~blueness/dist/URI
+	HTTP~tamiko/distfiles/URI"
 	devspace=${devspace//HTTP/https:\/\/dev.gentoo.org\/}
 	echo mirror://gentoo/$1 ${devspace//URI/$1}
 }
@@ -361,10 +370,11 @@ get_gcc_src_uri() {
 		fi
 	fi
 
+	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0
 	if in_iuse ada; then
 		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
-					   x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )
-					   arm?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )"
+				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )
+				arm?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )"
 	fi
 
 	echo "${GCC_SRC_URI}"
@@ -863,8 +873,6 @@ toolchain_src_configure() {
 		export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
 		export PATH="${GNATBOOT}/bin:${PATH}"
 
-#			AS=${GNATBOOT}/bin/as
-#			LD=${GNATBOOT}/bin/ld
 		confgcc+=(
 			CC=${GNATBOOT}/bin/gnatgcc
 			CXX=${GNATBOOT}/bin/gnatg++
@@ -1128,7 +1136,7 @@ toolchain_src_configure() {
 		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
 		# See if this is a valid --with-arch flag
 		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
-			. "${srcdir}"/config.gcc) &>/dev/null
+		    . "${srcdir}"/config.gcc) &>/dev/null
 		then
 			confgcc+=( --with-arch=${arm_arch} )
 		fi
