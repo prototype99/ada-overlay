@@ -166,7 +166,9 @@ if in_iuse ada; then
 	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
 	#
 	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0
-	GNAT_BOOTSTRAP_VERSION="4.9"
+	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
+	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
+	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.3"
 fi
 
 #---->> DEPEND <<----
@@ -329,7 +331,11 @@ get_gcc_src_uri() {
 	elif [[ -n ${SNAPSHOT} ]] ; then
 		GCC_SRC_URI="ftp://gcc.gnu.org/pub/gcc/snapshots/${SNAPSHOT}/gcc-${SNAPSHOT}.tar.bz2"
 	else
-		GCC_SRC_URI="mirror://gnu/gcc/gcc-${GCC_PV}/gcc-${GCC_RELEASE_VER}.tar.bz2"
+		if tc_version_is_between 5.5 6 || tc_version_is_between 6.4 7 || tc_version_is_at_least 7.2 ; then
+			GCC_SRC_URI="mirror://gnu/gcc/gcc-${GCC_PV}/gcc-${GCC_RELEASE_VER}.tar.xz"
+		else
+			GCC_SRC_URI="mirror://gnu/gcc/gcc-${GCC_PV}/gcc-${GCC_RELEASE_VER}.tar.bz2"
+		fi
 		# we want all branch updates to be against the main release
 		[[ -n ${BRANCH_UPDATE} ]] && \
 			GCC_SRC_URI+=" $(gentoo_urls gcc-${GCC_RELEASE_VER}-branch-update-${BRANCH_UPDATE}.patch.bz2)"
@@ -370,7 +376,7 @@ get_gcc_src_uri() {
 		fi
 	fi
 
-	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0
+	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0 for i686/arm/other arches.
 	if in_iuse ada; then
 		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
 				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )
@@ -460,7 +466,11 @@ gcc_quick_unpack() {
 	elif [[ -n ${SNAPSHOT} ]] ; then
 		unpack gcc-${SNAPSHOT}.tar.bz2
 	elif [[ ${PV} != *9999* ]] ; then
-		unpack gcc-${GCC_RELEASE_VER}.tar.bz2
+		if tc_version_is_between 5.5 6 || tc_version_is_between 6.4 7 || tc_version_is_at_least 7.2 ; then
+			unpack gcc-${GCC_RELEASE_VER}.tar.xz
+		else
+			unpack gcc-${GCC_RELEASE_VER}.tar.bz2
+		fi
 		# We want branch updates to be against a release tarball
 		if [[ -n ${BRANCH_UPDATE} ]] ; then
 			pushd "${S}" > /dev/null
