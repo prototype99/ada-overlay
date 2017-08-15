@@ -164,8 +164,6 @@ SLOT="${GCC_CONFIG_VER}"
 if in_iuse ada; then
 	# First time build, so need to bootstrap this.
 	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
-	#
-	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
 	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.3"
@@ -920,6 +918,7 @@ toolchain_src_configure() {
 	### language options
 
 	local GCC_LANG="c"
+	is_ada && GCC_LANG+=",ada"
 	is_cxx && GCC_LANG+=",c++"
 	is_d   && GCC_LANG+=",d"
 	is_gcj && GCC_LANG+=",java"
@@ -939,9 +938,6 @@ toolchain_src_configure() {
 	is_fortran && GCC_LANG+=",fortran"
 	is_f77 && GCC_LANG+=",f77"
 	is_f95 && GCC_LANG+=",f95"
-
-	# We DO want 'Ada support' in here!
-	is_ada && GCC_LANG+=",ada"
 
 	confgcc+=( --enable-languages=${GCC_LANG} )
 
