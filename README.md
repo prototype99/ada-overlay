@@ -197,8 +197,12 @@ This what I really want to happen:
 10. Incorporate this layer directly into Portage so that new users get it when they install Gentoo.
 11. Other stuff not mentioned above.
 
+You can (optionally) add this overlay with layman:
+
+$ layman -f -a ada -o https://raw.github.com/sarnold/ada-overlay/master/configs/layman.xml
+
 # Contributions
 
-Luke A. Guest
+Luke A. Guest (aka Lucretia)
 
-Add your name here
+Steve Arnold (aka nerdboy)
