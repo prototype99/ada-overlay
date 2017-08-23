@@ -197,11 +197,21 @@ This what I really want to happen:
 10. Incorporate this layer directly into Portage so that new users get it when they install Gentoo.
 11. Other stuff not mentioned above.
 
-You can (optionally) add this overlay with layman:
+You can (optionally) add this overlay with layman;
+
+Quick'n dirty way:
 
 ```
 $ layman -f -a ada -o https://raw.github.com/sarnold/ada-overlay/master/configs/layman.xml
 ```
+
+Cleaner way:
+
+Edit /etc/layman.cfg and add the above URL to the "overlays" list, then sync
+the layman overlays and list them.  You should see "ada" in the list of
+overlays (sorted alphabetically).  Do a "layman -a ada" and you should be all
+setup.  Note that layman stores overlays under /var/lib/layman by default, and
+adds a layman.conf under /etc/portage/repos.conf/ if you want to edit it.
 
 # Contributions
 
