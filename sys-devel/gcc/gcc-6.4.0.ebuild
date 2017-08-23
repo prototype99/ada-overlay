@@ -21,4 +21,6 @@ fi
 
 src_prepare() {
 	toolchain_src_prepare
+
+	use ada && epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch
 }
