@@ -378,9 +378,9 @@ get_gcc_src_uri() {
 
 	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0 for i686/arm/other arches.
 	if in_iuse ada; then
-		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
-				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
-#				arm?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )"
+		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )"
+#				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )
+#				arm?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )
 	fi
 
 	echo "${GCC_SRC_URI}"
@@ -890,6 +890,8 @@ toolchain_src_configure() {
 			AS=as
 			LD=ld
 		)
+	else
+		export PATH="${PATH}"
 	fi
 
 	confgcc+=(
