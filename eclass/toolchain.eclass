@@ -166,7 +166,8 @@ if in_iuse ada; then
 	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
-	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.3"
+	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
+	tc_version_is_at_least 7.0 && GNAT_BOOTSTRAP_VERSION="7.1"
 fi
 
 #---->> DEPEND <<----
