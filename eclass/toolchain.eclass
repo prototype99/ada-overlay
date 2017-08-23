@@ -882,8 +882,8 @@ toolchain_src_configure() {
 		export PATH="${GNATBOOT}/bin:${PATH}"
 
 		confgcc+=(
-			CC=${GNATBOOT}/bin/gnatgcc
-			CXX=${GNATBOOT}/bin/gnatg++
+			CC=${GNATBOOT}/bin/gcc
+			CXX=${GNATBOOT}/bin/g++
 			AR=${GNATBOOT}/bin/gcc-ar
 			AS=as
 			LD=ld
