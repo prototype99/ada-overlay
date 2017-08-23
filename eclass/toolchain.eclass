@@ -879,16 +879,14 @@ toolchain_src_configure() {
 	if in_iuse ada && [[ -d ${WORKDIR}/gnat_bootstrap ]] ; then
 		# We need to tell the system about our cross compiler!
 		export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
+		export ORIG_PATH="${PATH}"
 		export PATH="${GNATBOOT}/bin:${PATH}"
 
 		confgcc+=(
 			CC=${GNATBOOT}/bin/gcc
 			CXX=${GNATBOOT}/bin/g++
-			AR=${GNATBOOT}/bin/gcc-ar
 			AS=as
 			LD=ld
-			NM=${GNATBOOT}/bin/gcc-nm
-			RANLIB=${GNATBOOT}/bin/gcc-ranlib
 		)
 	fi
 
@@ -1685,6 +1683,7 @@ gcc_do_make() {
 			ewarn "Skipping libstdc++ manpage generation since you don't have doxygen installed"
 		fi
 	fi
+	export PATH="${ORIG_PATH}"
 
 	popd >/dev/null
 }
