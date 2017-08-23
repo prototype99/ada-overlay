@@ -21,4 +21,6 @@ fi
 
 src_prepare() {
 	toolchain_src_prepare
+
+	epatch "${FILESDIR}"/6.3.0/0001-Remove-P-macro-gnat-makefile.patch
 }
