@@ -1,7 +1,8 @@
-# Copyright 1999-2016 Gentoo Foundation
+# Copyright 1999-2017 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 
 # Maintainer: Toolchain Ninjas <toolchain@gentoo.org>
+# Ada updates: ada project <ada@gentoo.org>
 
 DESCRIPTION="The GNU Compiler Collection"
 HOMEPAGE="https://gcc.gnu.org/"
@@ -250,7 +251,7 @@ S=$(
 gentoo_urls() {
 	local devspace="HTTP~vapier/dist/URI HTTP~rhill/dist/URI
 	HTTP~zorry/patches/gcc/URI HTTP~blueness/dist/URI
-	HTTP~tamiko/distfiles/URI"
+	HTTP~tamiko/distfiles/URI HTTP~nerdboy/files/URI"
 	devspace=${devspace//HTTP/https:\/\/dev.gentoo.org\/}
 	echo mirror://gentoo/$1 ${devspace//URI/$1}
 }
@@ -885,11 +886,8 @@ toolchain_src_configure() {
 		confgcc+=(
 			CC=${GNATBOOT}/bin/gcc
 			CXX=${GNATBOOT}/bin/g++
-			AR=${GNATBOOT}/bin/gcc-ar
 			AS=as
 			LD=ld
-			NM=${GNATBOOT}/bin/gcc-nm
-			RANLIB=${GNATBOOT}/bin/gcc-ranlib
 		)
 	fi
 

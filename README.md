@@ -199,7 +199,9 @@ This what I really want to happen:
 
 You can (optionally) add this overlay with layman:
 
+```
 $ layman -f -a ada -o https://raw.github.com/sarnold/ada-overlay/master/configs/layman.xml
+```
 
 # Contributions
 
