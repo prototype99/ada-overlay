@@ -152,7 +152,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv"
+	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv" IUSE_DEF+=( bootstrap )
 	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
 	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 fi
@@ -431,23 +431,30 @@ toolchain_src_unpack() {
 	fi
 
 	# Unpack the Ada bootstrap if we're using it.
-	if in_iuse ada && ! type -P gnatbind > /dev/null; then
-		mkdir -p "${WORKDIR}/gnat_bootstrap" || die "Couldn't make GNAT bootstrap directory"
-		pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
+	#if in_iuse ada && ! type -P gnatbind > /dev/null; then
+	if in_iuse ada ; then
+		if use bootstrap || ! type -P gnatbind > /dev/null; then
+			mkdir -p "${WORKDIR}/gnat_bootstrap" \
+				|| die "Couldn't make GNAT bootstrap directory"
+			pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
 
-		case $(tc-arch) in
-			amd64)
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz || die "Failed to unpack AMD64 GNAT bootstrap compiler"
-				;;
-			x86)
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz || die "Failed to unpack x86 GNAT bootstrap compiler"
-				;;
-			arm)
-				unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz || die "Failed to unpack ARM GNAT bootstrap compiler"
-				;;
-		esac
+			case $(tc-arch) in
+				amd64)
+					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz \
+						|| die "Failed to unpack AMD64 GNAT bootstrap compiler"
+					;;
+				x86)
+					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz \
+						|| die "Failed to unpack x86 GNAT bootstrap compiler"
+					;;
+				arm)
+					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz \
+						|| die "Failed to unpack ARM GNAT bootstrap compiler"
+					;;
+			esac
 
-		popd > /dev/null || die
+			popd > /dev/null || die
+		fi
 	fi
 }
 
@@ -878,20 +885,39 @@ toolchain_src_configure() {
 	# then stage 2 uses these compilers.
 	#
 	# We only want to use the bootstrap when we don't have an already installed GNAT compiler.
-	if in_iuse ada && [[ -d ${WORKDIR}/gnat_bootstrap ]] ; then
-		# We need to tell the system about our cross compiler!
-		export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
-		export ORIG_PATH="${PATH}"
-		export PATH="${GNATBOOT}/bin:${PATH}"
-
-		confgcc+=(
-			CC=${GNATBOOT}/bin/gcc
-			CXX=${GNATBOOT}/bin/g++
-			AS=as
-			LD=ld
-		)
-	else
-		export PATH="${PATH}"
+	#    Note that gnatboot tarball will not be unpacked unless one of the
+	#    following is true: "use bootsrap" or gnatbind exists already.
+	# Also, we don't want to pollute the build env if we are using gnat
+	# tools from the existing toolchain.
+	if in_iuse ada ; then
+		echo
+		if ! built_with_use sys-devel/gcc ada || use bootstrap ; then
+			# We need to tell the system about our bootstrap compiler!
+			export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
+			PATH="${GNATBOOT}/bin:${PATH}"
+			confgcc+=(
+				CC=${GNATBOOT}/bin/gcc
+				CXX=${GNATBOOT}/bin/g++
+				AS=as
+				LD=ld
+			)
+			einfo "Using bootstrap gnat compiler..."
+		else
+			# TODO: This needs to be replaced with the *right* way...
+			PATH="/usr/lib/portage/python2.7/ebuild-helpers/xattr:/usr/lib/portage/python2.7/ebuild-helpers:/usr/sbin:/usr/bin:/sbin:/bin:/usr/x86_64-pc-linux-gnu/gcc-bin/6.3.0"
+			confgcc+=(
+				CC=$(tc-getCC)
+				CXX=$(tc-getCXX)
+				AS=as
+				LD=ld
+			)
+			einfo "Using installed gnat compiler..."
+		fi
+		export PATH
+		einfo "PATH = ${PATH}"
+		einfo "CC = ${CC}"
+		einfo "CXX = ${CXX}"
+		echo
 	fi
 
 	confgcc+=(
@@ -1687,7 +1713,6 @@ gcc_do_make() {
 			ewarn "Skipping libstdc++ manpage generation since you don't have doxygen installed"
 		fi
 	fi
-	export PATH="${ORIG_PATH}"
 
 	popd >/dev/null
 }
