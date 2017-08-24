@@ -700,6 +700,10 @@ make_gcc_hard() {
 			gcc_hard_flags+=" -DEXTRA_OPTIONS"
 			# rebrand to make bug reports easier
 			BRANDING_GCC_PKGVERSION=${BRANDING_GCC_PKGVERSION/Gentoo/Gentoo Hardened}
+
+			# fix stray vtv rpaths
+			sed -i -e "s|-rpath|-rpath-link|g" \
+				"${S}"/libstdc++-v3/acinclude.m4
 		fi
 	else
 		if use hardened ; then
@@ -1731,7 +1735,7 @@ toolchain_src_test() {
 toolchain_src_install() {
 	cd "${WORKDIR}"/build
 
-	# Do allow symlinks in private gcc include dir as this can break the build
+	# Do not allow symlinks in private gcc include dir as this can break the build
 	find gcc/include*/ -type l -delete
 
 	# Copy over the info pages.  We disabled their generation earlier, but the
@@ -1789,6 +1793,9 @@ toolchain_src_install() {
 	#      It's constantly out of date.
 	if in_iuse ada ; then
 		local gnat_extra_bins="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
+		# add some pax markings
+		use hardened && pax-mark E \
+			./{gnatmake,gnatname,gnatls,gnatclean,gnat}
 	fi
 
 	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${gnat_extra_bins} ; do
@@ -2086,6 +2093,11 @@ create_gcc_env_entry() {
 	CTARGET="${CTARGET}"
 	GCC_SPECS="${gcc_specs_file}"
 	MULTIOSDIRS="${mosdirs}"
+	EOF
+
+	use ada && cat <<-EOF >> ${gcc_envd_file}
+	ADA_INCLUDE_PATH="${LIBPATH}/adainclude"
+	ADA_OBJECTS_PATH="${LIBPATH}/adalib"
 	EOF
 }
 
