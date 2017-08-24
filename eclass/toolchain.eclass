@@ -431,7 +431,6 @@ toolchain_src_unpack() {
 	fi
 
 	# Unpack the Ada bootstrap if we're using it.
-	#if in_iuse ada && ! type -P gnatbind > /dev/null; then
 	if in_iuse ada ; then
 		if use bootstrap || ! type -P gnatbind > /dev/null; then
 			mkdir -p "${WORKDIR}/gnat_bootstrap" \
@@ -700,10 +699,6 @@ make_gcc_hard() {
 			gcc_hard_flags+=" -DEXTRA_OPTIONS"
 			# rebrand to make bug reports easier
 			BRANDING_GCC_PKGVERSION=${BRANDING_GCC_PKGVERSION/Gentoo/Gentoo Hardened}
-
-			# fix stray vtv rpaths
-			sed -i -e "s|-rpath|-rpath-link|g" \
-				"${S}"/libstdc++-v3/acinclude.m4
 		fi
 	else
 		if use hardened ; then
@@ -1793,9 +1788,6 @@ toolchain_src_install() {
 	#      It's constantly out of date.
 	if in_iuse ada ; then
 		local gnat_extra_bins="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
-		# add some pax markings
-		use hardened && pax-mark E \
-			./{gnatmake,gnatname,gnatls,gnatclean,gnat}
 	fi
 
 	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${gnat_extra_bins} ; do
@@ -1948,6 +1940,15 @@ toolchain_src_install() {
 	if is_gcj ; then
 		pax-mark -m "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/ecj1"
 		pax-mark -m "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/gij"
+	fi
+
+	# add some pax markings
+	if use hardened ; then
+		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatmake"
+		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatls"
+		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnat"
+		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatclean"
+		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatname"
 	fi
 }
 
