@@ -152,7 +152,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv" IUSE_DEF+=( bootstrap )
+	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv -bootstrap"
 	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
 	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 fi
@@ -163,7 +163,7 @@ SLOT="${GCC_CONFIG_VER}"
 
 # When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if in_iuse ada; then
-	# First time build, so need to bootstrap this.
+	# If first time build, we need to bootstrap this.
 	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
@@ -214,6 +214,10 @@ DEPEND="${RDEPEND}
 	regression-test? (
 		>=dev-util/dejagnu-1.4.4
 		>=sys-devel/autogen-5.5.4
+	)
+	ada? (
+		!dev-lang/gnat-gcc
+		!dev-lang/gnat-gpl
 	)"
 
 if in_iuse gcj ; then
@@ -432,7 +436,8 @@ toolchain_src_unpack() {
 
 	# Unpack the Ada bootstrap if we're using it.
 	if in_iuse ada ; then
-		if use bootstrap || ! type -P gnatbind > /dev/null; then
+		local gnat_bin=$(gcc-config --get-bin-path)/gnat
+		if ! [[ -h ${gnat_bin} ]] || use bootstrap ; then
 			mkdir -p "${WORKDIR}/gnat_bootstrap" \
 				|| die "Couldn't make GNAT bootstrap directory"
 			pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
@@ -889,8 +894,9 @@ toolchain_src_configure() {
 	# Also, we don't want to pollute the build env if we are using gnat
 	# tools from the existing toolchain.
 	if in_iuse ada ; then
+		local gnat_bin=$(gcc-config --get-bin-path)/gnat
 		echo
-		if ! built_with_use sys-devel/gcc ada || use bootstrap ; then
+		if ! [[ -h ${gnat_bin} ]] || use bootstrap ; then
 			# We need to tell the system about our bootstrap compiler!
 			export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
 			PATH="${GNATBOOT}/bin:${PATH}"
@@ -928,6 +934,9 @@ toolchain_src_configure() {
 		--infodir="${DATAPATH}/info"
 		--with-gxx-include-dir="${STDCXX_INCDIR}"
 	)
+
+	# disable rpath should propagate to libvtv/libstdcxx
+	confgcc+=( --disable-rpath )
 
 	# Stick the python scripts in their own slotted directory (bug #279252)
 	#
@@ -1940,15 +1949,6 @@ toolchain_src_install() {
 	if is_gcj ; then
 		pax-mark -m "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/ecj1"
 		pax-mark -m "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/gij"
-	fi
-
-	# add some pax markings
-	if use hardened ; then
-		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatmake"
-		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatls"
-		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnat"
-		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatclean"
-		pax-mark E "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/x86_64-pc-linux-gnu-gnatname"
 	fi
 }
 
