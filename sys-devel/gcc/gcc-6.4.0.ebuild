@@ -19,17 +19,8 @@ if [[ ${CATEGORY} != cross-* ]] ; then
 	PDEPEND="${PDEPEND} elibc_glibc? ( >=sys-libs/glibc-2.13 )"
 fi
 
-#QA_EXECSTACK=(
-#	"${BINPATH}-gnatmake"
-#	"${BINPATH}-gnatls"
-#	"${BINPATH}-gnat"
-#	"${BINPATH}-gnatclean"
-#	"${BINPATH}-gnatname"
-#	)
-
 src_prepare() {
 	toolchain_src_prepare
 
 	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch
-	epatch "${FILESDIR}"/0002-make-the-stack-non-executable-in-gnat-tools.patch
 }

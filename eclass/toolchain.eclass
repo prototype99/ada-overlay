@@ -8,7 +8,12 @@ DESCRIPTION="The GNU Compiler Collection"
 HOMEPAGE="https://gcc.gnu.org/"
 RESTRICT="strip" # cross-compilers need controlled stripping
 
-inherit eutils fixheadtails flag-o-matic gnuconfig libtool multilib pax-utils toolchain-funcs versionator prefix
+PYTHON_COMPAT=(
+	python3_3 python3_4 python3_5 python3_6
+	python2_7
+)
+
+inherit eutils fixheadtails flag-o-matic gnuconfig libtool multilib pax-utils toolchain-funcs versionator prefix python-any-r1
 
 if [[ ${PV} == *_pre9999* ]] ; then
 	EGIT_REPO_URI="git://gcc.gnu.org/git/gcc.git"
@@ -423,6 +428,9 @@ toolchain_pkg_setup() {
 	# we dont want to use the installed compiler's specs to build gcc
 	unset GCC_SPECS
 	unset LANGUAGES #265283
+
+	# need this for PATH mangling, make it go away please!
+	python-any-r1_pkg_setup
 }
 
 #---->> src_unpack <<----
@@ -552,6 +560,12 @@ toolchain_src_prepare() {
 	if ( tc_version_is_at_least 4.8.2 || use hardened ) && ! use vanilla ; then
 		make_gcc_hard
 	fi
+
+	# also remove some rpath cruft
+	sed -i -e "s|--rpath -Wl,|-rpath-link=|g" \
+		"${S}"/libstdc++-v3/acinclude.m4 \
+		"${S}"/libstdc++-v3/configure \
+		|| die "could not sed libstdc++-v3/acinclude.m4"
 
 	# install the libstdc++ python into the right location
 	# http://gcc.gnu.org/PR51368
@@ -908,8 +922,9 @@ toolchain_src_configure() {
 			)
 			einfo "Using bootstrap gnat compiler..."
 		else
-			# TODO: This needs to be replaced with the *right* way...
-			PATH="/usr/lib/portage/python2.7/ebuild-helpers/xattr:/usr/lib/portage/python2.7/ebuild-helpers:/usr/sbin:/usr/bin:/sbin:/bin:/usr/x86_64-pc-linux-gnu/gcc-bin/6.3.0"
+			# TODO: This needs to be replaced with the *right* way
+			#       since *not* setting it does not work.
+			PATH="/usr/lib/portage/$EPYTHON/ebuild-helpers/xattr:/usr/lib/portage/$EPYTHON/ebuild-helpers:/usr/sbin:/usr/bin:/sbin:/bin:/usr/${CTARGET}/gcc-bin/$(gcc -dumpversion)"
 			confgcc+=(
 				CC=$(tc-getCC)
 				CXX=$(tc-getCXX)
@@ -920,8 +935,6 @@ toolchain_src_configure() {
 		fi
 		export PATH
 		einfo "PATH = ${PATH}"
-		einfo "CC = ${CC}"
-		einfo "CXX = ${CXX}"
 		echo
 	fi
 
@@ -934,9 +947,6 @@ toolchain_src_configure() {
 		--infodir="${DATAPATH}/info"
 		--with-gxx-include-dir="${STDCXX_INCDIR}"
 	)
-
-	# disable rpath should propagate to libvtv/libstdcxx
-	confgcc+=( --disable-rpath )
 
 	# Stick the python scripts in their own slotted directory (bug #279252)
 	#
@@ -1939,6 +1949,11 @@ toolchain_src_install() {
 	export QA_EXECSTACK="usr/lib*/go/*/*.gox"
 	export QA_WX_LOAD="usr/lib*/go/*/*.gox"
 
+	if is_ada && ! tc_version_is_at_least 7 ; then
+		export QA_EXECSTACK="usr/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnat*"
+		export QA_WX_LOAD="usr/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnat*"
+	fi
+
 	# Disable RANDMMAP so PCH works. #301299
 	if tc_version_is_at_least 4.3 ; then
 		pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1"
@@ -1949,6 +1964,15 @@ toolchain_src_install() {
 	if is_gcj ; then
 		pax-mark -m "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/ecj1"
 		pax-mark -m "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/gij"
+	fi
+
+
+	if is_ada && ! tc_version_is_at_least 7 ; then
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatmake"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatls"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnat"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatclean"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatname"
 	fi
 }
 
