@@ -157,9 +157,9 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
-	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
-	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch ada -bootstrap"
+	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv"
+	tc_version_is_at_least 5.0 && IUSE+=" jit mpx -bootstrap"
+	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 fi
 
 IUSE+=" ${IUSE_DEF[*]/#/+}"
@@ -169,7 +169,8 @@ SLOT="${GCC_CONFIG_VER}"
 # When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if in_iuse ada; then
 	# If first time build, we need to bootstrap this.
-	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can definitely build 5.1.0.
+	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can
+	# definitely build 5.1.0 (and up to 5.4.0 with small patch)
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
 	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
@@ -387,9 +388,9 @@ get_gcc_src_uri() {
 
 	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0 for i686/arm/other arches.
 	if in_iuse ada; then
-		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )"
+		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
+				arm? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-5.4-arm.tar.xz )"
 #				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )
-#				arm?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )
 	fi
 
 	echo "${GCC_SRC_URI}"
@@ -486,10 +487,30 @@ gcc_quick_unpack() {
 		popd > /dev/null
 	fi
 
+	[[ -n ${PATCH_VER} ]] && \
+		unpack gcc-${PATCH_GCC_VER}-patches-${PATCH_VER}.tar.bz2
+
+	[[ -n ${UCLIBC_VER} ]] && \
+		unpack gcc-${UCLIBC_GCC_VER}-uclibc-patches-${UCLIBC_VER}.tar.bz2
+
+	if want_pie ; then
+		if [[ -n ${PIE_CORE} ]] ; then
+			unpack ${PIE_CORE}
+		else
+			unpack gcc-${PIE_GCC_VER}-piepatches-v${PIE_VER}.tar.bz2
+		fi
+		[[ -n ${SPECS_VER} ]] && \
+			unpack gcc-${SPECS_GCC_VER}-specs-${SPECS_VER}.tar.bz2
+	fi
+
+	use_if_iuse boundschecking && unpack "bounds-checking-gcc-${HTB_GCC_VER}-${HTB_VER}.patch.bz2"
+
+	popd > /dev/null
+
 	# Unpack the Ada bootstrap if we're using it.
 	if use ada ; then
 		local gnat_bin=$(gcc-config --get-bin-path)/gnat
-		if [[ -e ${gnat_bin} ]] || use bootstrap ; then
+		if ! [[ -e ${gnat_bin} ]] || use bootstrap ; then
 			mkdir -p "${WORKDIR}/gnat_bootstrap" \
 				|| die "Couldn't make GNAT bootstrap directory"
 			pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
@@ -512,26 +533,6 @@ gcc_quick_unpack() {
 			popd > /dev/null || die
 		fi
 	fi
-
-	[[ -n ${PATCH_VER} ]] && \
-		unpack gcc-${PATCH_GCC_VER}-patches-${PATCH_VER}.tar.bz2
-
-	[[ -n ${UCLIBC_VER} ]] && \
-		unpack gcc-${UCLIBC_GCC_VER}-uclibc-patches-${UCLIBC_VER}.tar.bz2
-
-	if want_pie ; then
-		if [[ -n ${PIE_CORE} ]] ; then
-			unpack ${PIE_CORE}
-		else
-			unpack gcc-${PIE_GCC_VER}-piepatches-v${PIE_VER}.tar.bz2
-		fi
-		[[ -n ${SPECS_VER} ]] && \
-			unpack gcc-${SPECS_GCC_VER}-specs-${SPECS_VER}.tar.bz2
-	fi
-
-	use_if_iuse boundschecking && unpack "bounds-checking-gcc-${HTB_GCC_VER}-${HTB_VER}.patch.bz2"
-
-	popd > /dev/null
 }
 
 #---->> src_prepare <<----
@@ -910,7 +911,7 @@ toolchain_src_configure() {
 	if use ada ; then
 		local gnat_bin=$(gcc-config --get-bin-path)/gnat
 		echo
-		if [[ -e ${gnat_bin} ]] || use bootstrap ; then
+		if ! [[ -e ${gnat_bin} ]] || use bootstrap ; then
 			# We need to tell the system about our bootstrap compiler!
 			export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
 			PATH="${GNATBOOT}/bin:${PATH}"
@@ -935,6 +936,18 @@ toolchain_src_configure() {
 		fi
 		export PATH
 		einfo "PATH = ${PATH}"
+
+		# linker fails on hardened arm 6.x with use=ada
+		#   undefined references to __gnat_stack_check
+		# (only defined for VXWorks configs)
+		# Note this works for 6.3.0 but not 6.4.0  :/
+		if tc_version_is_between 6.0 7.1 ; then
+			if [[ $(tc-arch) == "arm" ]] && use ssp ; then
+				einfo "Disabling stack-check..."
+				append-cflags -fstack-check=no
+				append-cxxflags -fstack-check=no
+			fi
+		fi
 		echo
 	fi
 
