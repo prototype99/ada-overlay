@@ -157,9 +157,9 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv -bootstrap"
+	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
 	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
-	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
+	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch ada -bootstrap"
 fi
 
 IUSE+=" ${IUSE_DEF[*]/#/+}"
@@ -441,33 +441,6 @@ toolchain_src_unpack() {
 	else
 		gcc_quick_unpack
 	fi
-
-	# Unpack the Ada bootstrap if we're using it.
-	if in_iuse ada ; then
-		local gnat_bin=$(gcc-config --get-bin-path)/gnat
-		if ! [[ -h ${gnat_bin} ]] || use bootstrap ; then
-			mkdir -p "${WORKDIR}/gnat_bootstrap" \
-				|| die "Couldn't make GNAT bootstrap directory"
-			pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
-
-			case $(tc-arch) in
-				amd64)
-					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz \
-						|| die "Failed to unpack AMD64 GNAT bootstrap compiler"
-					;;
-				x86)
-					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz \
-						|| die "Failed to unpack x86 GNAT bootstrap compiler"
-					;;
-				arm)
-					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz \
-						|| die "Failed to unpack ARM GNAT bootstrap compiler"
-					;;
-			esac
-
-			popd > /dev/null || die
-		fi
-	fi
 }
 
 gcc_quick_unpack() {
@@ -511,6 +484,33 @@ gcc_quick_unpack() {
 			die "failed to include the D language"
 		fi
 		popd > /dev/null
+	fi
+
+	# Unpack the Ada bootstrap if we're using it.
+	if use ada ; then
+		local gnat_bin=$(gcc-config --get-bin-path)/gnat
+		if [[ -e ${gnat_bin} ]] || use bootstrap ; then
+			mkdir -p "${WORKDIR}/gnat_bootstrap" \
+				|| die "Couldn't make GNAT bootstrap directory"
+			pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
+
+			case $(tc-arch) in
+				amd64)
+					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz \
+						|| die "Failed to unpack AMD64 GNAT bootstrap compiler"
+					;;
+				x86)
+					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz \
+						|| die "Failed to unpack x86 GNAT bootstrap compiler"
+					;;
+				arm)
+					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz \
+						|| die "Failed to unpack ARM GNAT bootstrap compiler"
+					;;
+			esac
+
+			popd > /dev/null || die
+		fi
 	fi
 
 	[[ -n ${PATCH_VER} ]] && \
@@ -907,10 +907,10 @@ toolchain_src_configure() {
 	#    following is true: "use bootsrap" or gnatbind exists already.
 	# Also, we don't want to pollute the build env if we are using gnat
 	# tools from the existing toolchain.
-	if in_iuse ada ; then
+	if use ada ; then
 		local gnat_bin=$(gcc-config --get-bin-path)/gnat
 		echo
-		if ! [[ -h ${gnat_bin} ]] || use bootstrap ; then
+		if [[ -e ${gnat_bin} ]] || use bootstrap ; then
 			# We need to tell the system about our bootstrap compiler!
 			export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
 			PATH="${GNATBOOT}/bin:${PATH}"
