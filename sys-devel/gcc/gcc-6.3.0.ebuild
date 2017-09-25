@@ -23,4 +23,6 @@ src_prepare() {
 	toolchain_src_prepare
 
 	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch
+
+	use ada && use ssp && append-flags -fstack-check=no
 }

@@ -168,9 +168,12 @@ SLOT="${GCC_CONFIG_VER}"
 
 # When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if in_iuse ada; then
-	# If first time build, we need to bootstrap this.
-	# A newer version of GNAT should build an older version, just not vice-versa. 4.9 can
-	# definitely build 5.1.0 (and up to 5.4.0 with small patch)
+	# If first time build, we need to bootstrap this with a working gnat.
+	# A newer version of GNAT should build an older version, but vice-versa
+	# depends on native vs cross and which versions, etc. Version 4.9 can
+	# definitely build 5.1.0 (and up to 5.4.0 with small patch) while 5.4
+	# can build up through 6.4, again, with a small patch, but 6.3 only
+	# needs -fstack-check=no (go figure...)
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
 	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
@@ -386,11 +389,11 @@ get_gcc_src_uri() {
 		fi
 	fi
 
-	# TODO: Add support for bootstraps for 5.4.0 and 6.3.0 for i686/arm/other arches.
+	# TODO: Add bootstraps for 5.4.0 and 6.4.0 for mips/ppc/other arches.
 	if in_iuse ada; then
 		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
-				arm? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-5.4-arm.tar.xz )"
-#				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )
+				arm? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )
+				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
 	fi
 
 	echo "${GCC_SRC_URI}"
