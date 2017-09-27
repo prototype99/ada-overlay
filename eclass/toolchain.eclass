@@ -177,7 +177,7 @@ if in_iuse ada; then
 	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
 	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
-	tc_version_is_at_least 7.0 && GNAT_BOOTSTRAP_VERSION="7.1"
+	tc_version_is_at_least 7.0 && GNAT_BOOTSTRAP_VERSION="7.2"
 fi
 
 #---->> DEPEND <<----
@@ -939,18 +939,6 @@ toolchain_src_configure() {
 		fi
 		export PATH
 		einfo "PATH = ${PATH}"
-
-		# linker fails on hardened arm 6.x with use=ada
-		#   undefined references to __gnat_stack_check
-		# (only defined for VXWorks configs)
-		# Note this works for 6.3.0 but not 6.4.0  :/
-		if tc_version_is_between 6.0 7.1 ; then
-			if [[ $(tc-arch) == "arm" ]] && use ssp ; then
-				einfo "Disabling stack-check..."
-				append-cflags -fstack-check=no
-				append-cxxflags -fstack-check=no
-			fi
-		fi
 		echo
 	fi
 
