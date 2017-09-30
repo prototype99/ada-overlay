@@ -1,14 +1,15 @@
 # Copyright 1999-2017 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI="4"
+EAPI="5"
 
-PATCH_VER="1.0"
+PATCH_VER="1.1"
+PATCH_GCC_VER="7.1.0"
 #UCLIBC_VER="1.0"
 
 inherit toolchain
 
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~amd64-fbsd ~x86-fbsd"
+KEYWORDS=""
 
 RDEPEND=""
 DEPEND="${RDEPEND}
@@ -22,7 +23,11 @@ fi
 src_prepare() {
 	toolchain_src_prepare
 
-	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch
+	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch \
+		"${FILESDIR}"/${PV}/${P}-fix-linux-platform-def.patch
 
-	use ada && use ssp && append-flags -fstack-check=no
+	# fails the build if this  tries -fself-test=foo too early;
+	# this is just a brute-force removal of the offending argument
+	# to get past the early fail
+	#epatch "${FILESDIR}"/${PV}/${P}-disable-fself-test.patch
 }
