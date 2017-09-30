@@ -156,8 +156,8 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" ada cilk +vtv"
-	tc_version_is_at_least 5.0 && IUSE+=" jit mpx -bootstrap"
+	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
+	tc_version_is_at_least 5.0 && IUSE+=" ada jit mpx -bootstrap"
 	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 fi
 
@@ -173,7 +173,6 @@ if in_iuse ada; then
 	# definitely build 5.1.0 (and up to 5.4.0 with small patch) while 5.4
 	# can build up through 6.4, again, with a small patch, but 6.3 only
 	# needs -fstack-check=no (go figure...)
-	tc_version_is_at_least 4.9 && GNAT_BOOTSTRAP_VERSION="4.9"
 	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
 	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
 	tc_version_is_at_least 7.0 && GNAT_BOOTSTRAP_VERSION="7.2"
@@ -392,6 +391,7 @@ get_gcc_src_uri() {
 	if in_iuse ada; then
 		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
 				arm? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )
+				arm64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm64.tar.xz )
 				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
 	fi
 
@@ -529,6 +529,10 @@ gcc_quick_unpack() {
 				arm)
 					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz \
 						|| die "Failed to unpack ARM GNAT bootstrap compiler"
+					;;
+				arm64)
+					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm64.tar.xz \
+						|| die "Failed to unpack ARM64 GNAT bootstrap compiler"
 					;;
 			esac
 

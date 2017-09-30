@@ -24,7 +24,7 @@ src_prepare() {
 	toolchain_src_prepare
 
 	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch \
-		"${FILESDIR}"/${PV}/${P}-fix-arm-platform-def.patch
+		"${FILESDIR}"/${PV}/${P}-fix-linux-platform-def.patch
 
 	# fails the build if this  tries -fself-test=foo too early;
 	# this is just a brute-force removal of the offending argument
