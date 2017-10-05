@@ -157,7 +157,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
 	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
-	tc_version_is_at_least 5.0 && IUSE+=" ada jit mpx -bootstrap"
+	tc_version_is_at_least 5.0 && IUSE+=" ada jit mpx -gnat-bootstrap"
 	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 fi
 
@@ -165,7 +165,7 @@ IUSE+=" ${IUSE_DEF[*]/#/+}"
 
 SLOT="${GCC_CONFIG_VER}"
 
-# When using Ada, use this bootstrap compiler to build, only when there is no pre-existing Ada compiler.
+# When using Ada, use this gnat-bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if in_iuse ada; then
 	# If first time build, we need to bootstrap this with a working gnat.
 	# A newer version of GNAT should build an older version, but vice-versa
@@ -416,6 +416,7 @@ toolchain_pkg_pretend() {
 		use_if_iuse go && ewarn 'Go requires a C++ compiler, disabled due to USE="-cxx"'
 		use_if_iuse objc++ && ewarn 'Obj-C++ requires a C++ compiler, disabled due to USE="-cxx"'
 		use_if_iuse gcj && ewarn 'GCJ requires a C++ compiler, disabled due to USE="-cxx"'
+		use_if_iuse ada && ewarn 'Ada requires a C++ compiler, disabled due to USE="-cxx"'
 	fi
 
 	want_minispecs
@@ -431,6 +432,7 @@ toolchain_pkg_setup() {
 	# we dont want to use the installed compiler's specs to build gcc
 	unset GCC_SPECS
 	unset LANGUAGES #265283
+	unset ADA_INCLUDE_PATH ADA_OBJECT_PATH
 
 	# need this for PATH mangling, make it go away please!
 	python-any-r1_pkg_setup
@@ -510,9 +512,9 @@ gcc_quick_unpack() {
 	popd > /dev/null
 
 	# Unpack the Ada bootstrap if we're using it.
-	if use ada ; then
+	if use ada && ! is_crosscompile ; then
 		local gnat_bin=$(gcc-config --get-bin-path)/gnat
-		if ! [[ -e ${gnat_bin} ]] || use bootstrap ; then
+		if ! [[ -e ${gnat_bin} ]] || use gnat-bootstrap ; then
 			mkdir -p "${WORKDIR}/gnat_bootstrap" \
 				|| die "Couldn't make GNAT bootstrap directory"
 			pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
@@ -906,10 +908,10 @@ toolchain_src_configure() {
 	[[ -n ${CBUILD} ]] && confgcc+=( --build=${CBUILD} )
 
 	# Add variables we need to make the build find the bootstrap compiler.
-	# We only want to use the bootstrap compiler for stage 1 of bootstrap, this will build the necessary compilers,
+	# We only want to use the gnat-bootstrap compiler for stage 1 of bootstrap, this will build the necessary compilers,
 	# then stage 2 uses these compilers.
 	#
-	# We only want to use the bootstrap when we don't have an already installed GNAT compiler.
+	# We only want to use the gnat-bootstrap when we don't have an already installed GNAT compiler.
 	#    Note that gnatboot tarball will not be unpacked unless one of the
 	#    following is true: "use bootsrap" or gnatbind exists already.
 	# Also, we don't want to pollute the build env if we are using gnat
@@ -917,7 +919,7 @@ toolchain_src_configure() {
 	if use ada ; then
 		local gnat_bin=$(gcc-config --get-bin-path)/gnat
 		echo
-		if ! [[ -e ${gnat_bin} ]] || use bootstrap ; then
+		if (! [[ -e ${gnat_bin} ]] || use gnat-bootstrap) && ! is_crosscompile ; then
 			# We need to tell the system about our bootstrap compiler!
 			export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
 			PATH="${GNATBOOT}/bin:${PATH}"
@@ -928,7 +930,7 @@ toolchain_src_configure() {
 				LD=ld
 			)
 			einfo "Using bootstrap gnat compiler..."
-		else
+		elif ! is_crosscompile ; then
 			# TODO: This needs to be replaced with the *right* way
 			#       since *not* setting it does not work.
 			PATH="/usr/lib/portage/$EPYTHON/ebuild-helpers/xattr:/usr/lib/portage/$EPYTHON/ebuild-helpers:/usr/sbin:/usr/bin:/sbin:/bin:/usr/${CTARGET}/gcc-bin/$(gcc -dumpversion)"
@@ -2372,7 +2374,7 @@ gcc-lang-supported() {
 
 is_ada() {
 	gcc-lang-supported ada || return 1
-	use ada
+	use cxx && use_if_iuse ada
 }
 
 is_cxx() {
