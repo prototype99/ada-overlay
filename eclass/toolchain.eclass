@@ -214,6 +214,16 @@ if in_iuse graphite ; then
 	fi
 fi
 
+if in_iuse ada ; then
+	if tc_version_is_at_least 5.0 ; then
+		RDEPEND+="
+			ada? (
+				!dev-lang/gnat-gcc
+				!dev-lang/gnat-gpl
+			)"
+	fi
+fi
+
 DEPEND="${RDEPEND}
 	>=sys-devel/bison-1.875
 	>=sys-devel/flex-2.5.4
@@ -221,10 +231,6 @@ DEPEND="${RDEPEND}
 	regression-test? (
 		>=dev-util/dejagnu-1.4.4
 		>=sys-devel/autogen-5.5.4
-	)
-	ada? (
-		!dev-lang/gnat-gcc
-		!dev-lang/gnat-gpl
 	)"
 
 if in_iuse gcj ; then
@@ -510,7 +516,7 @@ gcc_quick_unpack() {
 	popd > /dev/null
 
 	# Unpack the Ada bootstrap if we're using it.
-	if use ada ; then
+	if use_if_iuse ada ; then
 		local gnat_bin=$(gcc-config --get-bin-path)/gnat
 		if ! [[ -e ${gnat_bin} ]] || use bootstrap ; then
 			mkdir -p "${WORKDIR}/gnat_bootstrap" \
@@ -914,7 +920,7 @@ toolchain_src_configure() {
 	#    following is true: "use bootsrap" or gnatbind exists already.
 	# Also, we don't want to pollute the build env if we are using gnat
 	# tools from the existing toolchain.
-	if use ada ; then
+	if use_if_iuse ada ; then
 		local gnat_bin=$(gcc-config --get-bin-path)/gnat
 		echo
 		if ! [[ -e ${gnat_bin} ]] || use bootstrap ; then

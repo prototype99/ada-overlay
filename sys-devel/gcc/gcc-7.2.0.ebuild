@@ -25,9 +25,4 @@ src_prepare() {
 
 	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch \
 		"${FILESDIR}"/${PV}/${P}-fix-linux-platform-def.patch
-
-	# fails the build if this  tries -fself-test=foo too early;
-	# this is just a brute-force removal of the offending argument
-	# to get past the early fail
-	#epatch "${FILESDIR}"/${PV}/${P}-disable-fself-test.patch
 }
