@@ -1121,6 +1121,10 @@ toolchain_src_configure() {
 		fi
 
 		tc_version_is_at_least 4.2 && confgcc+=( --disable-bootstrap )
+
+		# workaround for crossdev "ambiguous libgcc_s.so" link error
+		use ada && confgcc+=( --disable-shared )
+
 	else
 		if tc-is-static-only ; then
 			confgcc+=( --disable-shared )
