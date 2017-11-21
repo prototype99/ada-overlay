@@ -59,6 +59,14 @@ Also add the following to ```/etc/portage/package.accept_keywords```:
 >=sys-devel/gcc-5.4.0::ada **
 ```
 
+On some arches, you may also need to add the following to
+```/etc/portage/package.use.mask```:
+
+```bash
+sys-devel/gcc::ada -ada -vtv -sanitize -pie -hardened
+```
+(adjust as needed)
+
 ### WARNING!!!
 
 You should make a backup of the system compiler, even though this has been
