@@ -939,7 +939,7 @@ toolchain_src_configure() {
 		elif ! is_crosscompile ; then
 			# TODO: This needs to be replaced with the *right* way
 			#       since *not* setting it does not work.
-			PATH="/usr/lib/portage/$EPYTHON/ebuild-helpers/xattr:/usr/lib/portage/$EPYTHON/ebuild-helpers:/usr/sbin:/usr/bin:/sbin:/bin:/usr/${CTARGET}/gcc-bin/$(gcc -dumpversion)"
+#			PATH="/usr/lib/portage/$EPYTHON/ebuild-helpers/xattr:/usr/lib/portage/$EPYTHON/ebuild-helpers:/usr/sbin:/usr/bin:/sbin:/bin:/usr/${CHOST}/gcc-bin/$(gcc -dumpversion)"
 			confgcc+=(
 				CC=$(tc-getCC)
 				CXX=$(tc-getCXX)
@@ -1099,7 +1099,8 @@ toolchain_src_configure() {
 		x86_64-*-mingw*|\
 		*-w64-mingw*)	 needed_libc=mingw64-runtime;;
 		mingw*|*-mingw*) needed_libc=mingw-runtime;;
-		avr)			 confgcc+=( --enable-shared --disable-threads );;
+		avr)		 confgcc+=( --enable-shared --disable-threads )
+				 use ada && confgcc+=( --disable-libada );;
 		esac
 		if [[ -n ${needed_libc} ]] ; then
 			local confgcc_no_libc=( --disable-shared )
@@ -1360,11 +1361,18 @@ toolchain_src_configure() {
 	fi
 
 	if tc_version_is_at_least 6.0 ; then
-		confgcc+=(
-			$(use_enable pie default-pie)
-			# This defaults to -fstack-protector-strong.
-			$(use_enable ssp default-ssp)
-		)
+		if [[ ${CTARGET} == avr* ]] ; then
+			confgcc+=(
+				--disable-default-pie
+				$(use_enable ssp default-ssp)
+			)
+		else
+			confgcc+=(
+				$(use_enable pie default-pie)
+				# This defaults to -fstack-protector-strong.
+				$(use_enable ssp default-ssp)
+			)
+		fi
 	fi
 
 	# Disable gcc info regeneration -- it ships with generated info pages
