@@ -156,12 +156,11 @@ status of the inclusion of this overlay into the main Gentoo toolchain.eclass.
 1. Build a normal system toolchain including GNAT with ```USE=ada``` - done
 2. Add a basic/default environment to gcc-config (note gprbuild doesn't use this) - done
 3. Crossdev support for Ada - done
-4. Add gprbuild, xmlada, ASIS, other base AdaCore tools - done (see `dev-ada-overlay`_
+4. Add gprbuild, xmlada, ASIS, other base AdaCore tools - done
+   see [https://github.com/sarnold/dev-ada-overlay dev-ada-overlay]
 5. Additional Ada packages - in progress
 6. Possible eclass for Ada ebuilds when .gpr support is dropped from gnatmake
 7. More??
-
-.. _dev-ada-overlay: https://github.com/sarnold/dev-ada-overlay
 
 ## Contributions
 
