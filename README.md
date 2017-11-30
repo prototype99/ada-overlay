@@ -1,8 +1,8 @@
 # Gentoo Ada overlay
 
 This overlay contains a modified set of packages and toolchain.eclass to enable
-Ada based on a USE flag.  The current gnat bootstrap compilers are currently
-hosted in devspace and should eventually be moved to distfiles.
+Ada based on a USE flag.  The gnat bootstrap compilers are currently hosted in
+devspace and should eventually be moved to distfiles.
 
 ## To download
 
@@ -32,7 +32,8 @@ adds a layman.conf under /etc/portage/repos.conf/ if you want to edit it.
 ## The source
 
 There is a copy of the system toolchain.eclass in the eclass directory, this
-has been modified for both USE=ada and crossdev (crossdev-99999999 also 
+has been modified for both USE=ada and crossdev (crossdev-99999999 also supports
+the "ada" use flag).
 
 If you install with layman, it will add a new config for you, however, if
 you cloned this overlay somewhere manually, you should add the following to
@@ -145,7 +146,7 @@ lrwxrwxrwx 1 root root      23 May  1 22:08 x86_64-pc-linux-gnu-gcc-5.4.0 -> x86
 ```
 
 Once GCC-5.4.0 has been built with Ada support, gcc can then use itself
-bootstrap newer GCC's, as in 5.4.0 -> 6.4.0 -> 7.2.0
+to bootstrap newer GCC's, as in 5.4.0 -> 6.4.0 -> 7.2.0
 
 ## Roadmap and Status
 
