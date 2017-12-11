@@ -1,0 +1,293 @@
+From patchwork Thu Dec 17 07:25:10 2015
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [ARM,2/6] Add support for ARMv8-M
+X-Patchwork-Submitter: Thomas Preudhomme <thomas.preudhomme@foss.arm.com>
+X-Patchwork-Id: 558061
+Message-Id: <002d01d1389c$1173cb30$345b6190$@foss.arm.com>
+To: <gcc-patches@gcc.gnu.org>, "Richard Earnshaw" <Richard.Earnshaw@arm.com>, 
+ "Ramana Radhakrishnan" <ramana.radhakrishnan@arm.com>,
+ "Kyrylo Tkachov" <kyrylo.tkachov@arm.com>
+Date: Thu, 17 Dec 2015 15:25:10 +0800
+From: "Thomas Preud'homme" <thomas.preudhomme@foss.arm.com>
+List-Id: <gcc-patches.gcc.gnu.org>
+
+Hi,
+
+This patch is part of a patch series to add support for ARMv8-M[1] to GCC. This specific patch adds basic support for the new architecture, allowing the new names to be accepted by -march and the compiler to behave like ARMv6-M (for ARMv8-M Baseline) and or ARMv7-M (for ARMv8-M Mainline). The changes are divided in two categories:
+
+* those to recognize the new architecture name
+* those to keep the behavior as previous architectures
+
+Changes to make the compiler generate code with the new instructions are in follow-up patches.
+
+[1] For a quick overview of ARMv8-M please refer to the initial cover letter.
+
+
+ChangeLog entries are as follow:
+
+*** gcc/ChangeLog ***
+
+2015-11-23  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+        * config/arm/arm-arches.def (armv8-m.base): Define new architecture.
+        (armv8-m.main): Likewise.
+        (armv8-m.main+dsp): Likewise
+        * config/arm/arm-protos.h (FL_FOR_ARCH8M_BASE): Define.
+        (FL_FOR_ARCH8M_MAIN): Likewise.
+        * config/arm/arm-tables.opt: Regenerate.
+        * config/arm/bpabi.h: Add armv8-m.base, armv8-m.main and
+        armv8-m.main+dsp to BE8_LINK_SPEC.
+        * config/arm/arm.h (TARGET_HAVE_LDACQ): Exclude ARMv8-M.
+        (enum base_architecture): Add BASE_ARCH_8M_BASE and BASE_ARCH_8M_MAIN.
+        (TARGET_ARM_V8M): Define.
+        * config/arm/arm.c (arm_arch_name): Increase size to work with ARMv8-M
+        Baseline and Mainline.
+        (arm_option_override_internal): Also disable arm_restrict_it when
+        !arm_arch_notm.
+        (arm_file_start): Increase architecture buffer size.
+        * doc/invoke.texi: Document architectures armv8-m.base, armv8-m.main
+        and armv8-m.main+dsp.
+        (mno-unaligned-access): Clarify that this is disabled by default for
+        ARMv8-M Baseline architecture as well.
+
+
+*** gcc/testsuite/ChangeLog ***
+
+2015-11-10  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+        * lib/target-supports.exp: Generate add_options_for_arm_arch_FUNC and
+        check_effective_target_arm_arch_FUNC_multilib for ARMv8-M Baseline and
+        ARMv8-M Mainline architectures.
+
+
+*** libgcc/ChangeLog ***
+
+2015-11-10  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+        * config/arm/lib1funcs.S (__ARM_ARCH__): Define to 8 for ARMv8-M.
+
+
+
+
+Testing:
+
+* Toolchain was built successfully with and without the ARMv8-M support patches with the following multilib list: armv6-m,armv7-m,armv7e-m,cortex-m7. The code generation for crtbegin.o, crtend.o, crti.o, crtn.o, libgcc.a, libgcov.a, libc.a, libg.a, libgloss-linux.a, libm.a, libnosys.a, librdimon.a, librdpmon.a, libstdc++.a and libsupc++.a is unchanged for all these targets. 
+
+* GCC also showed no testsuite regression when targeting ARMv8-M Baseline compared to ARMv6-M on ARM Fast Models and when targeting ARMv6-M and ARMv7-M (compared to without the patch)
+* GCC was bootstrapped successfully targeting Thumb-1 and targeting Thumb-2
+
+
+Is this ok for stage3?
+
+Best regards,
+
+Thomas
+
+diff --git a/gcc/config/arm/arm-arches.def b/gcc/config/arm/arm-arches.def
+index ddf6c3c330f91640d647d266f3d0e2350e7b986a..1d0301a3b9414127d387834584f3e42c225b6d3f 100644
+--- a/gcc/config/arm/arm-arches.def
++++ b/gcc/config/arm/arm-arches.def
+@@ -57,6 +57,12 @@ ARM_ARCH("armv7-m", cortexm3,	7M,	ARM_FSET_MAKE_CPU1 (FL_CO_PROC |	      FL_FOR_
+ ARM_ARCH("armv7e-m", cortexm4,  7EM,	ARM_FSET_MAKE_CPU1 (FL_CO_PROC |	      FL_FOR_ARCH7EM))
+ ARM_ARCH("armv8-a", cortexa53,  8A,	ARM_FSET_MAKE_CPU1 (FL_CO_PROC |             FL_FOR_ARCH8A))
+ ARM_ARCH("armv8-a+crc",cortexa53, 8A,   ARM_FSET_MAKE_CPU1 (FL_CO_PROC | FL_CRC32  | FL_FOR_ARCH8A))
++ARM_ARCH("armv8-m.base", cortexm0, 8M_BASE,
++	 ARM_FSET_MAKE_CPU1 (			      FL_FOR_ARCH8M_BASE))
++ARM_ARCH("armv8-m.main", cortexm7, 8M_MAIN,
++	 ARM_FSET_MAKE_CPU1(FL_CO_PROC |	      FL_FOR_ARCH8M_MAIN))
++ARM_ARCH("armv8-m.main+dsp", cortexm7, 8M_MAIN,
++	 ARM_FSET_MAKE_CPU1(FL_CO_PROC | FL_ARCH7EM | FL_FOR_ARCH8M_MAIN))
+ ARM_ARCH("iwmmxt",  iwmmxt,     5TE,	ARM_FSET_MAKE_CPU1 (FL_LDSCHED | FL_STRONG | FL_FOR_ARCH5TE | FL_XSCALE | FL_IWMMXT))
+ ARM_ARCH("iwmmxt2", iwmmxt2,    5TE,	ARM_FSET_MAKE_CPU1 (FL_LDSCHED | FL_STRONG | FL_FOR_ARCH5TE | FL_XSCALE | FL_IWMMXT | FL_IWMMXT2))
+ 
+diff --git a/gcc/config/arm/arm-protos.h b/gcc/config/arm/arm-protos.h
+index e7328e79650739fca1c3e21b10c194feaa697465..dc7a0871c333337bfda2671f197bfe83c20c7888 100644
+--- a/gcc/config/arm/arm-protos.h
++++ b/gcc/config/arm/arm-protos.h
+@@ -415,6 +415,8 @@ extern bool arm_is_constant_pool_ref (rtx);
+ #define FL_FOR_ARCH7M	(FL_FOR_ARCH7 | FL_THUMB_DIV)
+ #define FL_FOR_ARCH7EM  (FL_FOR_ARCH7M | FL_ARCH7EM)
+ #define FL_FOR_ARCH8A	(FL_FOR_ARCH7VE | FL_ARCH8)
++#define FL_FOR_ARCH8M_BASE     (FL_FOR_ARCH6M | FL_ARCH8 | FL_THUMB_DIV)
++#define FL_FOR_ARCH8M_MAIN     (FL_FOR_ARCH7M | FL_ARCH8)
+ 
+ /* There are too many feature bits to fit in a single word so the set of cpu and
+    fpu capabilities is a structure.  A feature set is created and manipulated
+diff --git a/gcc/config/arm/arm-tables.opt b/gcc/config/arm/arm-tables.opt
+index 48aac41c37a35e27440f67863d4a92457916dd1b..2f24bf4c9a9ae1a12ba284fd160c34e577b2e4c6 100644
+--- a/gcc/config/arm/arm-tables.opt
++++ b/gcc/config/arm/arm-tables.opt
+@@ -416,10 +416,19 @@ EnumValue
+ Enum(arm_arch) String(armv8-a+crc) Value(26)
+ 
+ EnumValue
+-Enum(arm_arch) String(iwmmxt) Value(27)
++Enum(arm_arch) String(armv8-m.base) Value(27)
+ 
+ EnumValue
+-Enum(arm_arch) String(iwmmxt2) Value(28)
++Enum(arm_arch) String(armv8-m.main) Value(28)
++
++EnumValue
++Enum(arm_arch) String(armv8-m.main+dsp) Value(29)
++
++EnumValue
++Enum(arm_arch) String(iwmmxt) Value(30)
++
++EnumValue
++Enum(arm_arch) String(iwmmxt2) Value(31)
+ 
+ Enum
+ Name(arm_fpu) Type(int)
+diff --git a/gcc/config/arm/arm.h b/gcc/config/arm/arm.h
+index 0d23f390f9dded95c982aa42e2c3afadb7c67a33..bad88efd26500f8245e32de8ced9937e69c18337 100644
+--- a/gcc/config/arm/arm.h
++++ b/gcc/config/arm/arm.h
+@@ -258,7 +258,7 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
+ 			     || arm_arch7) && arm_arch_notm)
+ 
+ /* Nonzero if this chip supports load-acquire and store-release.  */
+-#define TARGET_HAVE_LDACQ	(TARGET_ARM_ARCH >= 8)
++#define TARGET_HAVE_LDACQ	(TARGET_ARM_ARCH >= 8 && arm_arch_notm)
+ 
+ /* Nonzero if integer division instructions supported.  */
+ #define TARGET_IDIV	((TARGET_ARM && arm_arch_arm_hwdiv)	\
+@@ -395,7 +395,9 @@ enum base_architecture
+   BASE_ARCH_7R = 7,
+   BASE_ARCH_7M = 7,
+   BASE_ARCH_7EM = 7,
+-  BASE_ARCH_8A = 8
++  BASE_ARCH_8A = 8,
++  BASE_ARCH_8M_BASE = 8,
++  BASE_ARCH_8M_MAIN = 8
+ };
+ 
+ /* The major revision number of the ARM Architecture implemented by the target.  */
+@@ -2186,6 +2188,8 @@ extern int making_const_table;
+ 			&& !arm_arch_thumb2)
+ #define TARGET_ARM_V7M (TARGET_ARM_ARCH == BASE_ARCH_7M && !arm_arch_notm \
+ 			&& arm_arch_thumb2)
++#define TARGET_ARM_V8M (TARGET_ARM_ARCH == BASE_ARCH_8M_BASE \
++			&& !arm_arch_notm && !arm_arch_thumb2)
+ 
+ /* The highest Thumb instruction set version supported by the chip.  */
+ #define TARGET_ARM_ARCH_ISA_THUMB 		\
+diff --git a/gcc/config/arm/arm.c b/gcc/config/arm/arm.c
+index 3588b839fb6b22b2ae71798c46b385153c011855..cdced2fff383b3c750ba1f8da4021aad675574f7 100644
+--- a/gcc/config/arm/arm.c
++++ b/gcc/config/arm/arm.c
+@@ -2261,9 +2261,11 @@ static const struct processors *arm_selected_arch;
+ static const struct processors *arm_selected_cpu;
+ static const struct processors *arm_selected_tune;
+ 
+-/* The name of the preprocessor macro to define for this architecture.  */
++/* The name of the preprocessor macro to define for this architecture.  PROFILE
++   is replaced by the architecture name (eg. 8A) in arm_option_override () and
++   is thus chosen to be big enough to hold the biggest architecture name.  */
+ 
+-char arm_arch_name[] = "__ARM_ARCH_0UNK__";
++char arm_arch_name[] = "__ARM_ARCH_PROFILE__";
+ 
+ /* Available values for -mfpu=.  */
+ 
+@@ -2896,7 +2898,8 @@ arm_option_override_internal (struct gcc_options *opts,
+   if (! opts_set->x_arm_restrict_it)
+     opts->x_arm_restrict_it = arm_arch8;
+ 
+-  if (!TARGET_THUMB2_P (opts->x_target_flags))
++  /* ARM execution state and M profile don't have [restrict] IT.  */
++  if (!TARGET_THUMB2_P (opts->x_target_flags) || !arm_arch_notm)
+     opts->x_arm_restrict_it = 0;
+ 
+   /* Enable -munaligned-access by default for
+@@ -25910,7 +25913,7 @@ arm_file_start (void)
+ 	      const char* pos = strchr (arm_selected_arch->name, '+');
+ 	      if (pos)
+ 		{
+-		  char buf[15];
++		  char buf[32];
+ 		  gcc_assert (strlen (arm_selected_arch->name)
+ 			      <= sizeof (buf) / sizeof (*pos));
+ 		  strncpy (buf, arm_selected_arch->name,
+diff --git a/gcc/config/arm/bpabi.h b/gcc/config/arm/bpabi.h
+index e522064441f81245fd14ffeefa4efcce3546e179..184397dd1560f3a1312ebe45de9b67e8564fb960 100644
+--- a/gcc/config/arm/bpabi.h
++++ b/gcc/config/arm/bpabi.h
+@@ -86,6 +86,9 @@
+    |march=armv7e-m|mcpu=cortex-m4|mcpu=cortex-m7        \
+    |march=armv6-m|mcpu=cortex-m0                        \
+    |march=armv8-a					\
++   |march=armv8-m.base					\
++   |march=armv8-m.main					\
++   |march=armv8-m.main+dsp				\
+    :%{!r:--be8}}}"
+ #else
+ #define BE8_LINK_SPEC \
+@@ -114,6 +117,9 @@
+    |march=armv7e-m|mcpu=cortex-m4|mcpu=cortex-m7        \
+    |march=armv6-m|mcpu=cortex-m0                        \
+    |march=armv8-a					\
++   |march=armv8-m.base					\
++   |march=armv8-m.main					\
++   |march=armv8-m.main+dsp				\
+    :%{!r:--be8}}}"
+ #endif
+ 
+diff --git a/gcc/doc/invoke.texi b/gcc/doc/invoke.texi
+index 33f579f88cd82a9cfeb2df1e9ff9b106f5529f2b..3e9726d96ef54b03296ed1c6f1a2d212afb29180 100644
+--- a/gcc/doc/invoke.texi
++++ b/gcc/doc/invoke.texi
+@@ -13535,6 +13535,7 @@ of the @option{-mcpu=} option.  Permissible names are: @samp{armv2},
+ @samp{armv6t2}, @samp{armv6z}, @samp{armv6kz}, @samp{armv6-m},
+ @samp{armv7}, @samp{armv7-a}, @samp{armv7-r}, @samp{armv7-m}, @samp{armv7e-m},
+ @samp{armv7ve}, @samp{armv8-a}, @samp{armv8-a+crc},
++@samp{armv8-m.base}, @samp{armv8-m.main}, @samp{armv8-m.main+dsp}
+ @samp{iwmmxt}, @samp{iwmmxt2}, @samp{ep9312}.
+ 
+ @option{-march=armv7ve} is the armv7-a architecture with virtualization
+@@ -13837,10 +13838,10 @@ generating these instructions.  This option is enabled by default when
+ @opindex mno-unaligned-access
+ Enables (or disables) reading and writing of 16- and 32- bit values
+ from addresses that are not 16- or 32- bit aligned.  By default
+-unaligned access is disabled for all pre-ARMv6 and all ARMv6-M
+-architectures, and enabled for all other architectures.  If unaligned
+-access is not enabled then words in packed data structures are
+-accessed a byte at a time.
++unaligned access is disabled for all pre-ARMv6, all ARMv6-M and for
++ARMv8-M Baseline architectures, and enabled for all other
++architectures.  If unaligned access is not enabled then words in packed
++data structures are accessed a byte at a time.
+ 
+ The ARM attribute @code{Tag_CPU_unaligned_access} is set in the
+ generated object file to either true or false, depending upon the
+diff --git a/gcc/testsuite/lib/target-supports.exp b/gcc/testsuite/lib/target-supports.exp
+index 3f968267f32317dffb7d5d8b969698fc80c3333a..be5c183f031e11e1021997e6708924f790e98e38 100644
+--- a/gcc/testsuite/lib/target-supports.exp
++++ b/gcc/testsuite/lib/target-supports.exp
+@@ -3113,7 +3113,9 @@ foreach { armfunc armflag armdef } { v4 "-march=armv4 -marm" __ARM_ARCH_4__
+ 				     v7m "-march=armv7-m -mthumb" __ARM_ARCH_7M__
+ 				     v7em "-march=armv7e-m -mthumb" __ARM_ARCH_7EM__
+ 				     v8a "-march=armv8-a" __ARM_ARCH_8A__
+-				     v8_1a "-march=armv8.1a" __ARM_ARCH_8A__ } {
++				     v8_1a "-march=armv8.1a" __ARM_ARCH_8A__
++				     v8m_base "-march=armv8-m.base -mthumb" __ARM_ARCH_8M_BASE__
++				     v8m_main "-march=armv8-m.main -mthumb" __ARM_ARCH_8M_MAIN__ } {
+     eval [string map [list FUNC $armfunc FLAG $armflag DEF $armdef ] {
+ 	proc check_effective_target_arm_arch_FUNC_ok { } {
+ 	    if { [ string match "*-marm*" "FLAG" ] &&
+diff --git a/libgcc/config/arm/lib1funcs.S b/libgcc/config/arm/lib1funcs.S
+index befb0423ba2bac5a597945518fc116621782f7b6..4bd2268e29486fd28f270ec74ae5e0fa5cd3e36d 100644
+--- a/libgcc/config/arm/lib1funcs.S
++++ b/libgcc/config/arm/lib1funcs.S
+@@ -108,7 +108,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ # define __ARM_ARCH__ 7
+ #endif
+ 
+-#if defined(__ARM_ARCH_8A__)
++#if defined(__ARM_ARCH_8A__) || defined(__ARM_ARCH_8M_BASE__) \
++	|| defined(__ARM_ARCH_8M_MAIN__)
+ # define __ARM_ARCH__ 8
+ #endif
+

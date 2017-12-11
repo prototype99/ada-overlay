@@ -1,0 +1,50 @@
+From patchwork Wed May 25 17:24:52 2016
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [arm-embedded] Map armv8-m.main+dsp multilib to armv8-m.main one
+X-Patchwork-Submitter: Thomas Preudhomme <thomas.preudhomme@foss.arm.com>
+X-Patchwork-Id: 626291
+Message-Id: <2981903.lfCclBUFIT@e108577-lin>
+To: gcc-patches@gcc.gnu.org
+Date: Wed, 25 May 2016 18:24:52 +0100
+From: Thomas Preudhomme <thomas.preudhomme@foss.arm.com>
+List-Id: <gcc-patches.gcc.gnu.org>
+
+Hi,
+
+ARMv8-M Mainline with DSP extension currently uses ARMv4T multilib because no 
+multilib is built for it and there is no directive telling GCC how to map it 
+to the right multilib. Therefore, we have applied the below patch 
+ARM/embedded-5-branch to add a directive to map it to ARMv8-M Mainline 
+multilibs (several multilibs exist for different mfpu options).
+
+
+*** gcc/ChangeLog.arm ***
+
+2016-05-24  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+        * config/arm/t-baremetal (MULTILIB_MATCHES): Match ARMv8-M Mainline
+        with DSP extensions to ARMv8-M Mainline.
+
+
+
+
+Best regards,
+
+Thomas
+
+diff --git a/gcc/config/arm/t-baremetal b/gcc/config/arm/t-baremetal
+index 
+ffd29815e6ec22c747e77747ed9b69e0ae21b63a..47522edba29e00c34f52d6a03dc04ab53f4925f3 
+100644
+--- a/gcc/config/arm/t-baremetal
++++ b/gcc/config/arm/t-baremetal
+@@ -50,6 +50,7 @@ MULTILIB_MATCHES  += march?armv7=mcpu?exynos-m1
+ MULTILIB_MATCHES  += march?armv7=mcpu?xgene1
+ MULTILIB_MATCHES  += march?armv7=mcpu?cortex-a57.cortex-a53
+ MULTILIB_MATCHES  += march?armv7=mcpu?cortex-a72.cortex-a53
++MULTILIB_MATCHES  += march?armv8-m.main=march?armv8-m.main+dsp
+ MULTILIB_MATCHES  += mfpu?vfpv3-d16=mfpu?vfpv3
+ MULTILIB_MATCHES  += mfpu?vfpv3-d16=mfpu?vfpv3-fp16
+ MULTILIB_MATCHES  += mfpu?vfpv3-d16=mfpu?vfpv3-d16-fp16

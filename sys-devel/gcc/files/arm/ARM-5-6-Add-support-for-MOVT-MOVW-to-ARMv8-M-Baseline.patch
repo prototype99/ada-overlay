@@ -1,0 +1,370 @@
+From patchwork Thu Dec 17 08:08:00 2015
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [ARM,5/6] Add support for MOVT/MOVW to ARMv8-M Baseline
+X-Patchwork-Submitter: Thomas Preudhomme <thomas.preudhomme@foss.arm.com>
+X-Patchwork-Id: 558070
+Message-Id: <003701d138a2$0d9e9890$28dbc9b0$@foss.arm.com>
+To: <gcc-patches@gcc.gnu.org>, "Richard Earnshaw" <Richard.Earnshaw@arm.com>, 
+ "Ramana Radhakrishnan" <ramana.radhakrishnan@arm.com>,
+ "Kyrylo Tkachov" <kyrylo.tkachov@arm.com>
+Date: Thu, 17 Dec 2015 16:08:00 +0800
+From: "Thomas Preud'homme" <thomas.preudhomme@foss.arm.com>
+List-Id: <gcc-patches.gcc.gnu.org>
+
+Hi,
+
+This patch is part of a patch series to add support for ARMv8-M[1] to GCC. This specific patch makes the compiler start generating code with the new MOVT/MOVW instructions for ARMv8-M Baseline.
+
+[1] For a quick overview of ARMv8-M please refer to the initial cover letter.
+
+ChangeLog entry is as follows:
+
+
+*** gcc/ChangeLog ***
+
+2015-11-13  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+        * config/arm/arm.h (TARGET_HAVE_MOVT): Include ARMv8-M as having MOVT.
+        * config/arm/arm.c (arm_arch_name): (const_ok_for_op): Check MOVT/MOVW
+        availability with TARGET_HAVE_MOVT.
+        (thumb_legitimate_constant_p): Legalize high part of a label_ref as a
+        constant.
+        (thumb1_rtx_costs): Also return 0 if setting a half word constant and
+        movw is available.
+        (thumb1_size_rtx_costs): Make set of half word constant also cost 1
+        extra instruction if MOVW is available.  Make constant with bottom half
+        word zero cost 2 instruction if MOVW is available.
+        * config/arm/arm.md (define_attr "arch"): Add v8mb.
+        (define_attr "arch_enabled"): Set to yes if arch value is v8mb and
+        target is ARMv8-M Baseline.
+        * config/arm/thumb1.md (thumb1_movdi_insn): Add ARMv8-M Baseline only
+        alternative for constants satisfying j constraint.
+        (thumb1_movsi_insn): Likewise.
+        (movsi splitter for K alternative): Tighten condition to not trigger
+        if movt is available and j constraint is satisfied.
+        (Pe immediate splitter): Likewise.
+        (thumb1_movhi_insn): Add ARMv8-M Baseline only alternative for
+        constant fitting in an halfword to use movw.
+        * doc/sourcebuild.texi (arm_thumb1_movt_ko): Document new ARM
+        effective target.
+
+
+*** gcc/testsuite/ChangeLog ***
+
+2015-11-13  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+        * lib/target-supports.exp (check_effective_target_arm_thumb1_movt_ko):
+        Define effective target.
+        * gcc.target/arm/pr42574.c: Require arm_thumb1_movt_ko instead of
+        arm_thumb1_ok as effective target to exclude ARMv8-M Baseline.
+
+
+
+
+Testing:
+
+* Toolchain was built successfully with and without the ARMv8-M support patches[1] with the following multilib list: armv6-m,armv7-m,armv7e-m,cortex-m7. The code generation for crtbegin.o, crtend.o, crti.o, crtn.o, libgcc.a, libgcov.a, libc.a, libg.a, libgloss-linux.a, libm.a, libnosys.a, librdimon.a, librdpmon.a, libstdc++.a and libsupc++.a is unchanged for all these targets. 
+
+[1] the binutils one, the GCC one, the newlib one and the 4 ld ones (adding support to ARMv8-M security extension)
+
+* GCC also showed no testsuite regression when targeting ARMv8-M Baseline compared to ARMv6-M on ARM Fast Models and when targeting ARMv6-M and ARMv7-M (compared to without the patch)
+* GCC was bootstrapped successfully targeting Thumb-1 and targeting Thumb-2
+
+Is this ok for stage3?
+
+Best regards,
+
+Thomas
+
+diff --git a/gcc/config/arm/arm.h b/gcc/config/arm/arm.h
+index ff3cfcd..015df50 100644
+--- a/gcc/config/arm/arm.h
++++ b/gcc/config/arm/arm.h
+@@ -261,7 +261,7 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
+ #define TARGET_HAVE_LDACQ	(TARGET_ARM_ARCH >= 8 && arm_arch_notm)
+ 
+ /* Nonzero if this chip provides the movw and movt instructions.  */
+-#define TARGET_HAVE_MOVT	(arm_arch_thumb2)
++#define TARGET_HAVE_MOVT	(arm_arch_thumb2 || arm_arch8)
+ 
+ /* Nonzero if integer division instructions supported.  */
+ #define TARGET_IDIV	((TARGET_ARM && arm_arch_arm_hwdiv)	\
+diff --git a/gcc/config/arm/arm.c b/gcc/config/arm/arm.c
+index 51d501e..d832309 100644
+--- a/gcc/config/arm/arm.c
++++ b/gcc/config/arm/arm.c
+@@ -8158,6 +8158,12 @@ arm_legitimate_constant_p_1 (machine_mode, rtx x)
+ static bool
+ thumb_legitimate_constant_p (machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+ {
++  /* Splitters for TARGET_USE_MOVT call arm_emit_movpair which creates high
++     RTX.  These RTX must therefore be allowed for Thumb-1 so that when run
++     for ARMv8-M baseline or later the result is valid.  */
++  if (TARGET_HAVE_MOVT && GET_CODE (x) == HIGH)
++    x = XEXP (x, 0);
++
+   return (CONST_INT_P (x)
+ 	  || CONST_DOUBLE_P (x)
+ 	  || CONSTANT_ADDRESS_P (x)
+@@ -8244,7 +8250,8 @@ thumb1_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer)
+     case CONST_INT:
+       if (outer == SET)
+ 	{
+-	  if ((unsigned HOST_WIDE_INT) INTVAL (x) < 256)
++	  if ((unsigned HOST_WIDE_INT) INTVAL (x) < 256
++	      || (TARGET_HAVE_MOVT && !(INTVAL (x) & 0xffff0000)))
+ 	    return 0;
+ 	  if (thumb_shiftable_const (INTVAL (x)))
+ 	    return COSTS_N_INSNS (2);
+@@ -8994,16 +9001,24 @@ thumb1_size_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer)
+ 	 the mode.  */
+       words = ARM_NUM_INTS (GET_MODE_SIZE (GET_MODE (SET_DEST (x))));
+       return COSTS_N_INSNS (words)
+-	     + COSTS_N_INSNS (1) * (satisfies_constraint_J (SET_SRC (x))
+-				    || satisfies_constraint_K (SET_SRC (x))
+-				       /* thumb1_movdi_insn.  */
+-				    || ((words > 1) && MEM_P (SET_SRC (x))));
++	     + COSTS_N_INSNS (1)
++	       * (satisfies_constraint_J (SET_SRC (x))
++		  || satisfies_constraint_K (SET_SRC (x))
++		     /* Too big immediate for 2byte mov, using movt.  */
++		  || ((unsigned HOST_WIDE_INT) INTVAL (SET_SRC (x)) >= 256
++		      && TARGET_HAVE_MOVT
++		      && satisfies_constraint_j (SET_SRC (x)))
++		     /* thumb1_movdi_insn.  */
++		  || ((words > 1) && MEM_P (SET_SRC (x))));
+ 
+     case CONST_INT:
+       if (outer == SET)
+         {
+           if ((unsigned HOST_WIDE_INT) INTVAL (x) < 256)
+             return COSTS_N_INSNS (1);
++	  /* movw is 4byte long.  */
++	  if (TARGET_HAVE_MOVT && !(INTVAL (x) & 0xffff0000))
++	    return COSTS_N_INSNS (2);
+ 	  /* See split "TARGET_THUMB1 && satisfies_constraint_J".  */
+ 	  if (INTVAL (x) >= -255 && INTVAL (x) <= -1)
+             return COSTS_N_INSNS (2);
+diff --git a/gcc/config/arm/arm.md b/gcc/config/arm/arm.md
+index 78dafa0..ce5ea83 100644
+--- a/gcc/config/arm/arm.md
++++ b/gcc/config/arm/arm.md
+@@ -115,10 +115,10 @@
+ ; This can be "a" for ARM, "t" for either of the Thumbs, "32" for
+ ; TARGET_32BIT, "t1" or "t2" to specify a specific Thumb mode.  "v6"
+ ; for ARM or Thumb-2 with arm_arch6, and nov6 for ARM without
+-; arm_arch6.  "v6t2" for Thumb-2 with arm_arch6.  This attribute is
+-; used to compute attribute "enabled", use type "any" to enable an
+-; alternative in all cases.
+-(define_attr "arch" "any,a,t,32,t1,t2,v6,nov6,v6t2,neon_for_64bits,avoid_neon_for_64bits,iwmmxt,iwmmxt2,armv6_or_vfpv3"
++; arm_arch6.  "v6t2" for Thumb-2 with arm_arch6 and v8mb for ARMv8-M
++; baseline.  This attribute is used to compute attribute "enabled",
++; use type "any" to enable an alternative in all cases.
++(define_attr "arch" "any,a,t,32,t1,t2,v6,nov6,v6t2,v8mb,neon_for_64bits,avoid_neon_for_64bits,iwmmxt,iwmmxt2,armv6_or_vfpv3"
+   (const_string "any"))
+ 
+ (define_attr "arch_enabled" "no,yes"
+@@ -157,6 +157,10 @@
+ 	      (match_test "TARGET_32BIT && arm_arch6 && arm_arch_thumb2"))
+ 	 (const_string "yes")
+ 
++	 (and (eq_attr "arch" "v8mb")
++	      (match_test "TARGET_THUMB1 && arm_arch8"))
++	 (const_string "yes")
++
+ 	 (and (eq_attr "arch" "avoid_neon_for_64bits")
+ 	      (match_test "TARGET_NEON")
+ 	      (not (match_test "TARGET_PREFER_NEON_64BITS")))
+diff --git a/gcc/config/arm/thumb1.md b/gcc/config/arm/thumb1.md
+index 3847b33b..7e3bcb4 100644
+--- a/gcc/config/arm/thumb1.md
++++ b/gcc/config/arm/thumb1.md
+@@ -590,8 +590,8 @@
+ ;;; ??? The 'i' constraint looks funny, but it should always be replaced by
+ ;;; thumb_reorg with a memory reference.
+ (define_insn "*thumb1_movdi_insn"
+-  [(set (match_operand:DI 0 "nonimmediate_operand" "=l,l,l,l,>,l, m,*r")
+-	(match_operand:DI 1 "general_operand"      "l, I,J,>,l,mi,l,*r"))]
++  [(set (match_operand:DI 0 "nonimmediate_operand" "=l,l,l,r,l,>,l, m,*r")
++	(match_operand:DI 1 "general_operand"      "l, I,J,j,>,l,mi,l,*r"))]
+   "TARGET_THUMB1
+    && (   register_operand (operands[0], DImode)
+        || register_operand (operands[1], DImode))"
+@@ -609,37 +609,41 @@
+     case 2:
+       operands[1] = GEN_INT (- INTVAL (operands[1]));
+       return \"movs\\t%Q0, %1\;rsbs\\t%Q0, %Q0, #0\;asrs\\t%R0, %Q0, #31\";
+-    case 3:
+-      return \"ldmia\\t%1, {%0, %H0}\";
++    case 3: if (!TARGET_HAVE_MOVT) gcc_unreachable ();
++	    return \"movw\\t%Q0, %L1\;movs\\tR0, #0\";
+     case 4:
+-      return \"stmia\\t%0, {%1, %H1}\";
++      return \"ldmia\\t%1, {%0, %H0}\";
+     case 5:
+-      return thumb_load_double_from_address (operands);
++      return \"stmia\\t%0, {%1, %H1}\";
+     case 6:
++      return thumb_load_double_from_address (operands);
++    case 7:
+       operands[2] = gen_rtx_MEM (SImode,
+ 			     plus_constant (Pmode, XEXP (operands[0], 0), 4));
+       output_asm_insn (\"str\\t%1, %0\;str\\t%H1, %2\", operands);
+       return \"\";
+-    case 7:
++    case 8:
+       if (REGNO (operands[1]) == REGNO (operands[0]) + 1)
+ 	return \"mov\\t%0, %1\;mov\\t%H0, %H1\";
+       return \"mov\\t%H0, %H1\;mov\\t%0, %1\";
+     }
+   }"
+-  [(set_attr "length" "4,4,6,2,2,6,4,4")
+-   (set_attr "type" "multiple,multiple,multiple,load2,store2,load2,store2,multiple")
+-   (set_attr "pool_range" "*,*,*,*,*,1018,*,*")]
++  [(set_attr "length" "4,4,6,6,2,2,6,4,4")
++   (set_attr "type" "multiple,multiple,multiple,multiple,load2,store2,load2,store2,multiple")
++   (set_attr "arch" "t1,t1,t1,v8mb,t1,t1,t1,t1,t1")
++   (set_attr "pool_range" "*,*,*,*,*,*,1018,*,*")]
+ )
+ 
+ (define_insn "*thumb1_movsi_insn"
+-  [(set (match_operand:SI 0 "nonimmediate_operand" "=l,l,l,l,l,>,l, m,*l*h*k")
+-	(match_operand:SI 1 "general_operand"      "l, I,J,K,>,l,mi,l,*l*h*k"))]
++  [(set (match_operand:SI 0 "nonimmediate_operand" "=l,l,r,l,l,l,>,l, m,*l*h*k")
++	(match_operand:SI 1 "general_operand"      "l, I,j,J,K,>,l,mi,l,*l*h*k"))]
+   "TARGET_THUMB1
+    && (   register_operand (operands[0], SImode)
+        || register_operand (operands[1], SImode))"
+   "@
+    movs	%0, %1
+    movs	%0, %1
++   movw	%0, %1
+    #
+    #
+    ldmia\\t%1, {%0}
+@@ -647,10 +651,11 @@
+    ldr\\t%0, %1
+    str\\t%1, %0
+    mov\\t%0, %1"
+-  [(set_attr "length" "2,2,4,4,2,2,2,2,2")
+-   (set_attr "type" "mov_reg,mov_imm,multiple,multiple,load1,store1,load1,store1,mov_reg")
+-   (set_attr "pool_range" "*,*,*,*,*,*,1018,*,*")
+-   (set_attr "conds" "set,clob,*,*,nocond,nocond,nocond,nocond,nocond")])
++  [(set_attr "length" "2,2,4,4,4,2,2,2,2,2")
++   (set_attr "type" "mov_reg,mov_imm,mov_imm,multiple,multiple,load1,store1,load1,store1,mov_reg")
++   (set_attr "pool_range" "*,*,*,*,*,*,*,1018,*,*")
++   (set_attr "arch" "t1,t1,v8mb,t1,t1,t1,t1,t1,t1,t1")
++   (set_attr "conds" "set,clob,nocond,*,*,nocond,nocond,nocond,nocond,nocond")])
+ 
+ ; Split the load of 64-bit constant into two loads for high and low 32-bit parts respectively
+ ; to see if we can load them in fewer instructions or fewer cycles.
+@@ -687,7 +692,8 @@
+ (define_split
+   [(set (match_operand:SI 0 "register_operand" "")
+ 	(match_operand:SI 1 "const_int_operand" ""))]
+-  "TARGET_THUMB1 && satisfies_constraint_K (operands[1])"
++  "TARGET_THUMB1 && satisfies_constraint_K (operands[1])
++   && !(TARGET_HAVE_MOVT && satisfies_constraint_j (operands[1]))"
+   [(set (match_dup 2) (match_dup 1))
+    (set (match_dup 0) (ashift:SI (match_dup 2) (match_dup 3)))]
+   "
+@@ -714,7 +720,8 @@
+ (define_split
+   [(set (match_operand:SI 0 "register_operand" "")
+ 	(match_operand:SI 1 "const_int_operand" ""))]
+-  "TARGET_THUMB1 && satisfies_constraint_Pe (operands[1])"
++  "TARGET_THUMB1 && satisfies_constraint_Pe (operands[1])
++   && !(TARGET_HAVE_MOVT && satisfies_constraint_j (operands[1]))"
+   [(set (match_dup 2) (match_dup 1))
+    (set (match_dup 0) (plus:SI (match_dup 2) (match_dup 3)))]
+   "
+@@ -726,8 +733,8 @@
+ )
+ 
+ (define_insn "*thumb1_movhi_insn"
+-  [(set (match_operand:HI 0 "nonimmediate_operand" "=l,l,m,l*r,*h,l")
+-	(match_operand:HI 1 "general_operand"       "l,m,l,k*h,*r,I"))]
++  [(set (match_operand:HI 0 "nonimmediate_operand" "=l,l,m,l*r,*h,l,r")
++	(match_operand:HI 1 "general_operand"       "l,m,l,k*h,*r,I,n"))]
+   "TARGET_THUMB1
+    && (   register_operand (operands[0], HImode)
+        || register_operand (operands[1], HImode))"
+@@ -739,6 +746,8 @@
+     case 3: return \"mov	%0, %1\";
+     case 4: return \"mov	%0, %1\";
+     case 5: return \"movs	%0, %1\";
++    case 6: if (!TARGET_HAVE_MOVT) gcc_unreachable ();
++	    return \"movw	%0, %L1\";
+     default: gcc_unreachable ();
+     case 1:
+       /* The stack pointer can end up being taken as an index register.
+@@ -758,9 +767,10 @@
+ 	}
+       return \"ldrh	%0, %1\";
+     }"
+-  [(set_attr "length" "2,4,2,2,2,2")
+-   (set_attr "type" "alus_imm,load1,store1,mov_reg,mov_reg,mov_imm")
+-   (set_attr "conds" "clob,nocond,nocond,nocond,nocond,clob")])
++  [(set_attr "length" "2,4,2,2,2,2,4")
++   (set_attr "type" "alus_imm,load1,store1,mov_reg,mov_reg,mov_imm,mov_imm")
++   (set_attr "arch" "t1,t1,t1,t1,t1,t1,v8mb")
++   (set_attr "conds" "clob,nocond,nocond,nocond,nocond,clob,nocond")])
+ 
+ (define_expand "thumb_movhi_clobber"
+   [(set (match_operand:HI     0 "memory_operand"   "")
+diff --git a/gcc/doc/sourcebuild.texi b/gcc/doc/sourcebuild.texi
+index 61de4a56..6c6f0f1 100644
+--- a/gcc/doc/sourcebuild.texi
++++ b/gcc/doc/sourcebuild.texi
+@@ -1586,6 +1586,10 @@ Some multilibs may be incompatible with these options.
+ ARM target prefers @code{LDRD} and @code{STRD} instructions over
+ @code{LDM} and @code{STM} instructions.
+ 
++@item arm_thumb1_movt_ko
++ARM target generates Thumb-1 code for @code{-mthumb} with no
++@code{MOVT} instruction available.
++
+ @end table
+ 
+ @subsubsection AArch64-specific attributes
+diff --git a/gcc/testsuite/gcc.target/arm/pr42574.c b/gcc/testsuite/gcc.target/arm/pr42574.c
+index 0ccd05f..53aea62 100644
+--- a/gcc/testsuite/gcc.target/arm/pr42574.c
++++ b/gcc/testsuite/gcc.target/arm/pr42574.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-mthumb -Os -fpic" }  */
+-/* { dg-require-effective-target arm_thumb1_ok } */
++/* { dg-require-effective-target arm_thumb1_movt_ko } */
+ /* { dg-require-effective-target fpic } */
+ /* Make sure the address of glob.c is calculated only once and using
+    a logical shift for the offset (200<<1).  */
+diff --git a/gcc/testsuite/lib/target-supports.exp b/gcc/testsuite/lib/target-supports.exp
+index 37c273a..44ebbe3 100644
+--- a/gcc/testsuite/lib/target-supports.exp
++++ b/gcc/testsuite/lib/target-supports.exp
+@@ -3211,6 +3211,23 @@ proc check_effective_target_arm_cortex_m { } {
+     } "-mthumb"]
+ }
+ 
++# Return 1 if this is an ARM target where -mthumb causes Thumb-1 to be
++# used and no movt/movw instructions to be available.
++
++proc check_effective_target_arm_thumb1_movt_ko {} {
++    if [check_effective_target_arm_thumb1_ok] {
++	return [expr ![check_no_compiler_messages arm_movt object {
++	    int
++	    foo (void)
++	    {
++	      asm ("movt r0, #42");
++	    }
++	} "-mthumb"]]
++    } else {
++	return 0
++    }
++}
++
+ # Return 1 if this compilation turns on string_ops_prefer_neon on.
+ 
+ proc check_effective_target_arm_tune_string_ops_prefer_neon { } {

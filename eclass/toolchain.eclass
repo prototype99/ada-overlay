@@ -157,7 +157,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
 	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
-	tc_version_is_at_least 5.0 && IUSE+=" ada jit mpx -gnat-bootstrap baremetal-arm"
+	tc_version_is_at_least 5.0 && IUSE+=" ada jit mpx -gnat-bootstrap -baremetal-arm"
 	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 fi
 
@@ -1220,7 +1220,13 @@ toolchain_src_configure() {
 		if use baremetal-arm ; then
 			# this is the expected GNU ARM config for multiple cortex-M targets
 			# requires patches currently in ada-overlay
-			confgcc+=( --with-multilib-list=armv6-m,armv7-m,armv7e-m,armv7-r,armv8-m.base,armv8-m.main )
+			local multilib_list
+			if tc_version_is_at_least 6.4 ; then
+				multilib_list="armv6-m,armv7-m,armv7e-m,armv7-r,armv8-m.base,armv8-m.main"
+			elif tc_version_is_at_least 5.4 ; then
+				multilib_list="armv6-m,armv7-m,armv7e-m,armv7-r"
+			fi
+			confgcc+=( --with-multilib-list=${multilib_list} )
 		else
 			# Make default mode thumb for microcontroller classes #418209
 			[[ ${arm_arch} == *-m ]] && confgcc+=( --with-mode=thumb )
