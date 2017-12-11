@@ -25,4 +25,8 @@ src_prepare() {
 	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch \
 		"${FILESDIR}"/${PV}/${P}-fix-linux-platform-def.patch \
 		"${FILESDIR}"/${PV}/${P}-add-finalization-size-for-Ada-objects.patch
+
+	epatch "${FILESDIR}"/${PV}/${P}-Document-with-multilib-list-for-arm-targets.patch \
+		"${FILESDIR}"/ARM-2-3-Error-out-for-incompatible-ARM-multilibs.patch \
+		"${FILESDIR}"/ARM-3-3-Add-multilib-support-for-bare-metal-ARM-architectures.patch
 }

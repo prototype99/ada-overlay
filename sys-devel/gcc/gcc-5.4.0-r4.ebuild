@@ -44,4 +44,8 @@ src_prepare() {
 
 	epatch "${FILESDIR}"/${PV}/${P}-hardened-adabuild.patch \
 		"${FILESDIR}"/${PN}-4.9.4-fix-qa-warning-add-missing-include.patch
+
+	is_crosscompile && epatch "${FILESDIR}"/${PV}/${P}-Document-with-multilib-list-for-arm-targets.patch \
+		"${FILESDIR}"/ARM-2-3-Error-out-for-incompatible-ARM-multilibs.patch \
+		"${FILESDIR}"/ARM-3-3-Add-multilib-support-for-bare-metal-ARM-architectures.patch
 }

@@ -1,0 +1,15 @@
+--- a/gcc/doc/install.texi	2017-12-11 10:47:30.570265145 -0800
++++ b/gcc/doc/install.texi	2017-12-11 10:52:14.418759441 -0800
+@@ -1116,9 +1116,9 @@
+ @code{aprofile} builds multilibs for each combination of ISA (@code{-marm} or
+ @code{-mthumb}), architecture (@code{-march=armv7-a}, @code{-march=armv7ve},
+ or @code{-march=armv8-a}), FPU available (none, @code{-mfpu=vfpv3-d16},
+-@code{-mfpu=neon}, @code{-mfpu=vfpv4-d16}, @code{-mfpu=neon-vfpv4} or
+-@code{-mfpu=neon-fp-armv8} depending on architecture) and floating-point ABI
+-(@code{-mfloat-abi=softfp} or @code{-mfloat-abi=hard}).
++@code{neon}, @code{vfpv4-d16}, @code{neon-vfpv4} or @code{neon-fp-armv8}
++depending on architecture) and floating-point ABI (@code{-mfloat-abi=softfp}
++or @code{-mfloat-abi=hard}).
+ 
+ @item sh*-*-*
+ @var{list} is a comma separated list of CPU names.  These must be of the
