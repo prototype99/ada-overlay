@@ -34,5 +34,6 @@ src_prepare() {
 		"${FILESDIR}"/arm/ARM-5-6-Add-support-for-MOVT-MOVW-to-ARMv8-M-Baseline.patch \
 		"${FILESDIR}"/arm/ARM-6-6-Add-support-for-CB-N-Z-and-U-S-DIV-to-ARMv8-M-Baseline.patch \
 		"${FILESDIR}"/arm/ARM-7-6-Enable-atomics-for-ARMv8-M-Mainline.patch \
-		"${FILESDIR}"/arm/arm-embedded-Map-armv8-m.main-dsp-multilib-to-armv8-m.main-one.patch
+		"${FILESDIR}"/arm/arm-embedded-Map-armv8-m.main-dsp-multilib-to-armv8-m.main-one.patch \
+		"${FILESDIR}"/arm/${P}-libgcc-ARM-1-6-Fix-Thumb-1-only-ARMv6-M-Thumb-2-only-ARMv7-M-assumptions.patch
 }

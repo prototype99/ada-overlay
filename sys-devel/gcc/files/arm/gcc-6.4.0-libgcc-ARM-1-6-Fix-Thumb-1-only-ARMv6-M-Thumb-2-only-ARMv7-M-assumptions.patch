@@ -1,0 +1,224 @@
+--- a/libgcc/config/arm/lib1funcs.S	2017-12-11 15:30:05.810471079 -0800
++++ b/libgcc/config/arm/lib1funcs.S	2017-12-11 16:37:55.790163193 -0800
+@@ -88,7 +88,7 @@
+    long multiply instructions.  That includes v3M.  */
+ # define __ARM_ARCH__ 4
+ #endif
+-	
++
+ #if defined(__ARM_ARCH_5__) || defined(__ARM_ARCH_5T__) \
+ 	|| defined(__ARM_ARCH_5E__) || defined(__ARM_ARCH_5TE__) \
+ 	|| defined(__ARM_ARCH_5TEJ__)
+@@ -125,7 +125,7 @@
+      && !defined(__thumb2__)		\
+      && (!defined(__THUMB_INTERWORK__)	\
+ 	 || defined (__OPTIMIZE_SIZE__)	\
+-	 || defined(__ARM_ARCH_6M__)))
++	 || !__ARM_ARCH_ISA_ARM))
+ # define __prefer_thumb__
+ #endif
+ 
+@@ -306,7 +306,7 @@
+ 
+ #ifdef __ARM_EABI__
+ .macro THUMB_LDIV0 name signed
+-#if defined(__ARM_ARCH_6M__)
++#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ 	.ifc \signed, unsigned
+ 	cmp	r0, #0
+ 	beq	1f
+@@ -479,7 +479,7 @@
+ 
+ #else /* !(__INTERWORKING_STUBS__ || __thumb2__) */
+ 
+-#ifdef __ARM_ARCH_6M__
++#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ #define EQUIV .thumb_set
+ #else
+ .macro	ARM_FUNC_START name sp_section=
+@@ -511,7 +511,7 @@
+ #endif
+ .endm
+ 
+-#ifndef __ARM_ARCH_6M__
++#if __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1
+ .macro	ARM_FUNC_ALIAS new old
+ 	.globl	SYM (__\new)
+ 	EQUIV	SYM (__\new), SYM (__\old)
+@@ -1055,7 +1055,7 @@
+ /* ------------------------------------------------------------------------ */
+ #ifdef L_umodsi3
+ 
+-#ifdef __ARM_ARCH_EXT_IDIV__
++#if defined(__ARM_ARCH_EXT_IDIV__) && __ARM_ARCH_ISA_THUMB != 1
+ 
+ 	ARM_FUNC_START umodsi3
+ 
+@@ -1241,7 +1241,7 @@
+ /* ------------------------------------------------------------------------ */
+ #ifdef L_modsi3
+ 
+-#if defined(__ARM_ARCH_EXT_IDIV__)
++#if defined(__ARM_ARCH_EXT_IDIV__) && __ARM_ARCH_ISA_THUMB != 1
+ 
+ 	ARM_FUNC_START modsi3
+ 
+@@ -1509,14 +1509,15 @@
+ 
+ #endif /* __symbian__ */
+ 
+-#if ((__ARM_ARCH__ > 5) && !defined(__ARM_ARCH_6M__)) \
+-    || defined(__ARM_ARCH_5E__) || defined(__ARM_ARCH_5TE__) \
+-    || defined(__ARM_ARCH_5TEJ__)
++#if (__ARM_ARCH_ISA_THUMB == 2 \
++	|| (__ARM_ARCH_ISA_ARM    \
++	&& (__ARM_ARCH__ > 5   \
++	|| (__ARM_ARCH__ == 5 && __ARM_ARCH_ISA_THUMB))))
+ #define HAVE_ARM_CLZ 1
+ #endif
+ 
+ #ifdef L_clzsi2
+-#if defined(__ARM_ARCH_6M__)
++#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ FUNC_START clzsi2
+ 	mov	r1, #28
+ 	mov	r3, #1
+@@ -1577,7 +1578,7 @@
+ #ifdef L_clzdi2
+ #if !defined(HAVE_ARM_CLZ)
+ 
+-# if defined(__ARM_ARCH_6M__)
++# if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ FUNC_START clzdi2
+ 	push	{r4, lr}
+ # else
+@@ -1602,7 +1603,7 @@
+ 	bl	__clzsi2
+ # endif
+ 2:
+-# if defined(__ARM_ARCH_6M__)
++# if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ 	pop	{r4, pc}
+ # else
+ 	RETLDM	r4
+@@ -1624,7 +1625,7 @@
+ #endif /* L_clzdi2 */
+ 
+ #ifdef L_ctzsi2
+-#if defined(__ARM_ARCH_6M__)
++#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ FUNC_START ctzsi2
+ 	neg	r1, r0
+ 	and	r0, r0, r1
+@@ -1739,7 +1740,7 @@
+ 
+ /* Don't bother with the old interworking routines for Thumb-2.  */
+ /* ??? Maybe only omit these on "m" variants.  */
+-#if !defined(__thumb2__) && !defined(__ARM_ARCH_6M__)
++#if __ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ 
+ #if defined L_interwork_call_via_rX
+ 
+@@ -1984,11 +1985,12 @@
+ .endm
+ 
+ #ifndef __symbian__
+-#ifndef __ARM_ARCH_6M__
++/* The condition here must match the one in gcc/config/arm/elf.h.  */
++#if __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1
+ #include "ieee754-df.S"
+ #include "ieee754-sf.S"
+ #include "bpabi.S"
+-#else /* __ARM_ARCH_6M__ */
++#else /* !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1 */
+ #include "bpabi-v6m.S"
+-#endif /* __ARM_ARCH_6M__ */
++#endif /* !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1 */
+ #endif /* !__symbian__ */
+--- a/gcc/testsuite/lib/target-supports.exp	2017-12-11 15:30:05.947141860 -0800
++++ b/gcc/testsuite/lib/target-supports.exp	2017-12-11 16:31:45.545638932 -0800
+@@ -3362,10 +3362,8 @@
+ 	return 0
+     }
+     return [check_no_compiler_messages arm_cortex_m assembly {
+-	#if !defined(__ARM_ARCH_7M__) \
+-            && !defined (__ARM_ARCH_7EM__) \
+-            && !defined (__ARM_ARCH_6M__)
+-	#error !__ARM_ARCH_7M__ && !__ARM_ARCH_7EM__ && !__ARM_ARCH_6M__
++	#if defined(__ARM_ARCH_ISA_ARM)
++	#error __ARM_ARCH_ISA_ARM is defined
+ 	#endif
+ 	int i;
+     } "-mthumb"]
+--- a/gcc/config/arm/arm.h	2017-12-11 15:30:06.050478304 -0800
++++ b/gcc/config/arm/arm.h	2017-12-11 16:31:45.525638328 -0800
+@@ -2200,8 +2200,10 @@
+ #define TARGET_ARM_ARCH	\
+   (arm_base_arch)	\
+ 
+-#define TARGET_ARM_V6M (!arm_arch_notm && !arm_arch_thumb2)
+-#define TARGET_ARM_V7M (!arm_arch_notm && arm_arch_thumb2)
++#define TARGET_ARM_V6M (TARGET_ARM_ARCH == BASE_ARCH_6M && !arm_arch_notm \
++			&& !arm_arch_thumb2)
++#define TARGET_ARM_V7M (TARGET_ARM_ARCH == BASE_ARCH_7M && !arm_arch_notm \
++			&& arm_arch_thumb2)
+ #define TARGET_ARM_V8M (TARGET_ARM_ARCH == BASE_ARCH_8M_BASE \
+ 			&& !arm_arch_notm && !arm_arch_thumb2)
+ 
+--- a/gcc/config/arm/elf.h	2016-01-04 06:30:50.652828000 -0800
++++ b/gcc/config/arm/elf.h	2017-12-11 16:31:45.525638328 -0800
+@@ -148,8 +148,9 @@
+   while (0)
+ 
+ /* Horrible hack: We want to prevent some libgcc routines being included
+-   for some multilibs.  */
+-#ifndef __ARM_ARCH_6M__
++   for some multilibs.  The condition should match the one in
++   libgcc/config/arm/lib1funcs.S.  */
++#if __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1
+ #undef L_fixdfsi
+ #undef L_fixunsdfsi
+ #undef L_truncdfsf2
+--- a/libgcc/config/arm/bpabi-v6m.S	2016-01-04 06:30:50.652828000 -0800
++++ b/libgcc/config/arm/bpabi-v6m.S	2017-12-11 16:31:45.545638932 -0800
+@@ -1,4 +1,4 @@
+-/* Miscellaneous BPABI functions.  ARMv6M implementation
++/* Miscellaneous BPABI functions.  Thumb-1 only implementation
+ 
+    Copyright (C) 2006-2016 Free Software Foundation, Inc.
+    Contributed by CodeSourcery.
+--- a/libgcc/config/arm/libunwind.S	2016-01-04 06:30:50.652828000 -0800
++++ b/libgcc/config/arm/libunwind.S	2017-12-11 16:31:45.552305800 -0800
+@@ -58,7 +58,7 @@
+ #endif
+ #endif
+ 
+-#ifdef __ARM_ARCH_6M__
++#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+ 
+ /* r0 points to a 16-word block.  Upload these values to the actual core
+    state.  */
+@@ -169,7 +169,7 @@
+ 	UNPREFIX \name
+ .endm
+ 
+-#else /* !__ARM_ARCH_6M__ */
++#else /* __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1 */
+ 
+ /* r0 points to a 16-word block.  Upload these values to the actual core
+    state.  */
+@@ -351,7 +351,7 @@
+ 	UNPREFIX \name
+ .endm
+ 
+-#endif /* !__ARM_ARCH_6M__ */
++#endif /* __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1 */
+ 
+ UNWIND_WRAPPER _Unwind_RaiseException 1
+ UNWIND_WRAPPER _Unwind_Resume 1
+--- a/libgcc/config/arm/t-softfp	2011-08-05 08:13:48.449176000 -0700
++++ b/libgcc/config/arm/t-softfp	2017-12-11 16:31:45.552305800 -0800
+@@ -1,2 +1,2 @@
+-softfp_wrap_start := '\#ifdef __ARM_ARCH_6M__'
++softfp_wrap_start := '\#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1'
+ softfp_wrap_end := '\#endif'
