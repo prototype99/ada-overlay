@@ -362,6 +362,8 @@ get_gcc_src_uri() {
 		GCC_SRC_URI+=" $(gentoo_urls gcc-${UCLIBC_GCC_VER}-uclibc-patches-${UCLIBC_VER}.tar.bz2)"
 	[[ -n ${PATCH_VER} ]] && \
 		GCC_SRC_URI+=" $(gentoo_urls gcc-${PATCH_GCC_VER}-patches-${PATCH_VER}.tar.bz2)"
+	[[ -n ${ARM_PATCH_VER} ]] && \
+		GCC_SRC_URI+=" $(gentoo_urls gcc-${PATCH_GCC_VER}-arm-patches-${ARM_PATCH_VER}.tar.gz)"
 
 	# strawberry pie, Cappuccino and a Gauloises (it's a good thing)
 	[[ -n ${PIE_VER} ]] && \
@@ -497,6 +499,9 @@ gcc_quick_unpack() {
 		popd > /dev/null
 	fi
 
+	[[ -n ${ARM_PATCH_VER} ]] && \
+		unpack gcc-${PATCH_GCC_VER}-arm-patches-${ARM_PATCH_VER}.tar.gz
+
 	[[ -n ${PATCH_VER} ]] && \
 		unpack gcc-${PATCH_GCC_VER}-patches-${PATCH_VER}.tar.bz2
 
@@ -566,6 +571,12 @@ toolchain_src_prepare() {
 			guess_patch_type_in_dir "${WORKDIR}"/uclibc
 			EPATCH_MULTI_MSG="Applying uClibc patches ..." \
 			epatch "${WORKDIR}"/uclibc
+		fi
+		# add arm embedded-specific patches (currently only 6.4.0)
+		if [[ -n ${ARM_PATCH_VER} ]] ; then
+			guess_patch_type_in_dir "${WORKDIR}"/arm-patches/
+			EPATCH_MULTI_MSG="Applying Gentoo ARM patches ..." \
+			epatch "${WORKDIR}"/arm-patches/
 		fi
 	fi
 	do_gcc_HTB_patches

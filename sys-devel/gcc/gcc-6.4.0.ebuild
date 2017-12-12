@@ -4,6 +4,7 @@
 EAPI="5"
 
 PATCH_VER="1.0"
+ARM_PATCH_VER="1.0"
 #UCLIBC_VER="1.0"
 
 inherit toolchain
@@ -25,15 +26,4 @@ src_prepare() {
 	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch \
 		"${FILESDIR}"/${PV}/${P}-fix-linux-platform-def.patch \
 		"${FILESDIR}"/${PV}/${P}-add-finalization-size-for-Ada-objects.patch
-
-	is_crosscompile && epatch "${FILESDIR}"/${PV}/${P}-Document-with-multilib-list-for-arm-targets.patch \
-		"${FILESDIR}"/arm/ARM-2-3-Error-out-for-incompatible-ARM-multilibs.patch \
-		"${FILESDIR}"/arm/ARM-3-3-Add-multilib-support-for-bare-metal-ARM-architectures.patch \
-		"${FILESDIR}"/arm/${P}-ARM-2-6-Add-support-for-ARMv8-M.patch \
-		"${FILESDIR}"/arm/ARM-4-6-Factor-out-MOVW-MOVT-availability-and-desirability-checks.patch \
-		"${FILESDIR}"/arm/ARM-5-6-Add-support-for-MOVT-MOVW-to-ARMv8-M-Baseline.patch \
-		"${FILESDIR}"/arm/ARM-6-6-Add-support-for-CB-N-Z-and-U-S-DIV-to-ARMv8-M-Baseline.patch \
-		"${FILESDIR}"/arm/ARM-7-6-Enable-atomics-for-ARMv8-M-Mainline.patch \
-		"${FILESDIR}"/arm/arm-embedded-Map-armv8-m.main-dsp-multilib-to-armv8-m.main-one.patch \
-		"${FILESDIR}"/arm/${P}-libgcc-ARM-1-6-Fix-Thumb-1-only-ARMv6-M-Thumb-2-only-ARMv7-M-assumptions.patch
 }
