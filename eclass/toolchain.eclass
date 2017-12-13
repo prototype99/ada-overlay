@@ -1235,7 +1235,7 @@ toolchain_src_configure() {
 			if tc_version_is_at_least 6.4 ; then
 				multilib_list="armv6-m,armv7-m,armv7e-m,armv7-r,armv8-m.base,armv8-m.main"
 			elif tc_version_is_at_least 5.4 ; then
-				multilib_list="armv6-m,armv7-m,armv7e-m,cortex-m7"
+				multilib_list="aprofile"
 			fi
 			confgcc+=( --with-multilib-list=${multilib_list} )
 		else
