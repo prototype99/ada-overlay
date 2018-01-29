@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Gentoo Foundation
+# Copyright 1999-2018 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI="5"
@@ -8,7 +8,7 @@ PATCH_VER="1.1"
 
 inherit toolchain
 
-KEYWORDS=""
+KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~amd64-fbsd ~x86-fbsd"
 
 RDEPEND=""
 DEPEND="${RDEPEND}
@@ -23,5 +23,5 @@ src_prepare() {
 	toolchain_src_prepare
 
 	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch \
-		"${FILESDIR}"/${PV}/${P}-fix-arm-platform-def.patch
+		"${FILESDIR}"/${PV}/${P}-fix-linux-platform-def.patch
 }
