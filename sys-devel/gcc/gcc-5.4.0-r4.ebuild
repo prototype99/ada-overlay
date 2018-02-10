@@ -43,7 +43,8 @@ src_prepare() {
 	toolchain_src_prepare
 
 	epatch "${FILESDIR}"/${PV}/${P}-hardened-adabuild.patch \
-		"${FILESDIR}"/${PN}-4.9.4-fix-qa-warning-add-missing-include.patch
+		"${FILESDIR}"/${PN}-4.9.4-fix-qa-warning-add-missing-include.patch \
+		"${FILESDIR}"/${PN}-fixes-for-glibc-2.26.patch
 
 	is_crosscompile && epatch "${FILESDIR}"/${PV}/${P}-Document-with-multilib-list-for-arm-targets.patch \
 		"${FILESDIR}"/${PV}/ARM-2-3-Error-out-for-incompatible-ARM-multilibs.patch \
