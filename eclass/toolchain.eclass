@@ -2,7 +2,6 @@
 # Distributed under the terms of the GNU General Public License v2
 
 # Maintainer: Toolchain Ninjas <toolchain@gentoo.org>
-# Ada updates: Ada Project <ada@gentoo.org>
 
 DESCRIPTION="The GNU Compiler Collection"
 HOMEPAGE="https://gcc.gnu.org/"
@@ -138,7 +137,8 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	[[ -n ${HTB_VER} ]] && IUSE+=" boundschecking"
 	[[ -n ${D_VER}   ]] && IUSE+=" d"
 	[[ -n ${SPECS_VER} ]] && IUSE+=" nossp"
-	tc_version_is_at_least 3 && IUSE+=" doc gcj awt hardened multilib objc"
+	tc_version_is_at_least 3 && IUSE+=" doc hardened multilib objc"
+	tc_version_is_between 3 7 && IUSE+=" awt gcj"
 	tc_version_is_at_least 3.3 && IUSE+=" pgo"
 	tc_version_is_at_least 4.0 && IUSE+=" objc-gc"
 	tc_version_is_between 4.0 4.9 && IUSE+=" mudflap"
@@ -150,27 +150,17 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	# versions which we dropped.  Since graphite was also experimental in
 	# the older versions, we don't want to bother supporting it.  #448024
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
-	tc_version_is_at_least 4.9 && IUSE+=" cilk +vtv"
-	tc_version_is_at_least 5.0 && IUSE+=" ada jit mpx -gnat-bootstrap -baremetal-arm"
+	tc_version_is_between 4.9 8 && IUSE+=" cilk"
+	tc_version_is_at_least 4.9 && IUSE+=" +vtv"
+	tc_version_is_at_least 5.0 && IUSE+=" jit mpx"
 	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
+	# systemtap is a gentoo-specific switch: bug #654748
+	tc_version_is_at_least 8.0 && IUSE+=" systemtap"
 fi
 
 IUSE+=" ${IUSE_DEF[*]/#/+}"
 
 SLOT="${GCC_CONFIG_VER}"
-
-# When using Ada, use this gnat-bootstrap compiler to build, only when there is no pre-existing Ada compiler.
-if in_iuse ada; then
-        # If first time build, we need to bootstrap this with a working gnat.
-        # A newer version of GNAT should build an older version, but vice-versa
-        # depends on native vs cross and which versions, etc. Version 4.9 can
-        # definitely build 5.1.0 (and up to 5.4.0 with small patch) while 5.4
-        # can build up through 6.4, again, with a small patch, but 6.3 only
-        # needs -fstack-check=no (go figure...)
-        tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
-        tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
-        tc_version_is_at_least 7.0 && GNAT_BOOTSTRAP_VERSION="7.2"
-fi
 
 #---->> DEPEND <<----
 
@@ -208,16 +198,6 @@ if in_iuse graphite ; then
 	fi
 fi
 
-if in_iuse ada ; then
-	if tc_version_is_at_least 5.0 ; then
-		RDEPEND+="
-			ada? (
-				!dev-lang/gnat-gcc
-				!dev-lang/gnat-gpl
-			)"
-	fi
-fi
-
 DEPEND="${RDEPEND}
 	>=sys-devel/bison-1.875
 	>=sys-devel/flex-2.5.4
@@ -240,6 +220,11 @@ if in_iuse gcj ; then
 	tc_version_is_at_least 3.4 && GCJ_GTK_DEPS+=" x11-libs/pango"
 	tc_version_is_at_least 4.2 && GCJ_DEPS+=" app-arch/zip app-arch/unzip"
 	DEPEND+=" gcj? ( awt? ( ${GCJ_GTK_DEPS} ) ${GCJ_DEPS} )"
+fi
+
+if in_iuse systemtap ; then
+	# gcc needs sys/sdt.h headers on target
+	DEPEND+=" systemtap? ( dev-util/systemtap )"
 fi
 
 PDEPEND=">=sys-devel/gcc-config-1.7"
@@ -359,8 +344,6 @@ get_gcc_src_uri() {
 		GCC_SRC_URI+=" $(gentoo_urls gcc-${UCLIBC_GCC_VER}-uclibc-patches-${UCLIBC_VER}.tar.bz2)"
 	[[ -n ${PATCH_VER} ]] && \
 		GCC_SRC_URI+=" $(gentoo_urls gcc-${PATCH_GCC_VER}-patches-${PATCH_VER}.tar.bz2)"
-	[[ -n ${ARM_PATCH_VER} ]] && \
-		GCC_SRC_URI+=" $(gentoo_urls gcc-${PATCH_GCC_VER}-arm-patches-${ARM_PATCH_VER}.tar.gz)"
 
 	# strawberry pie, Cappuccino and a Gauloises (it's a good thing)
 	[[ -n ${PIE_VER} ]] && \
@@ -392,14 +375,6 @@ get_gcc_src_uri() {
 		fi
 	fi
 
-	# TODO: Add bootstraps for arm64/mips/ppc/other arches.
-	if in_iuse ada; then
-		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
-				arm? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )
-				arm64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm64.tar.xz )
-				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
-	fi
-
 	echo "${GCC_SRC_URI}"
 }
 
@@ -418,7 +393,6 @@ toolchain_pkg_pretend() {
 		use_if_iuse go && ewarn 'Go requires a C++ compiler, disabled due to USE="-cxx"'
 		use_if_iuse objc++ && ewarn 'Obj-C++ requires a C++ compiler, disabled due to USE="-cxx"'
 		use_if_iuse gcj && ewarn 'GCJ requires a C++ compiler, disabled due to USE="-cxx"'
-		use_if_iuse ada && ewarn 'Ada requires a C++ compiler, disabled due to USE="-cxx"'
 	fi
 
 	want_minispecs
@@ -430,7 +404,6 @@ toolchain_pkg_setup() {
 	# we dont want to use the installed compiler's specs to build gcc
 	unset GCC_SPECS
 	unset LANGUAGES #265283
-	unset ADA_INCLUDE_PATH ADA_OBJECT_PATH
 }
 
 #---->> src_unpack <<----
@@ -496,9 +469,6 @@ gcc_quick_unpack() {
 	[[ -n ${UCLIBC_VER} ]] && \
 		unpack gcc-${UCLIBC_GCC_VER}-uclibc-patches-${UCLIBC_VER}.tar.bz2
 
-	[[ -n ${ARM_PATCH_VER} ]] && \
-		unpack gcc-${PATCH_GCC_VER}-arm-patches-${ARM_PATCH_VER}.tar.gz
-
 	if want_pie ; then
 		if [[ -n ${PIE_CORE} ]] ; then
 			unpack ${PIE_CORE}
@@ -512,37 +482,6 @@ gcc_quick_unpack() {
 	use_if_iuse boundschecking && unpack "bounds-checking-gcc-${HTB_GCC_VER}-${HTB_VER}.patch.bz2"
 
 	popd > /dev/null
-
-	# Unpack the Ada bootstrap if we're using it.
-	if use_if_iuse ada && ! is_crosscompile ; then
-		local gnat_bin=$(gcc-config --get-bin-path)/gnat
-		if ! [[ -e ${gnat_bin} ]] || use gnat-bootstrap ; then
-			mkdir -p "${WORKDIR}/gnat_bootstrap" \
-				|| die "Couldn't make GNAT bootstrap directory"
-			pushd "${WORKDIR}/gnat_bootstrap" > /dev/null || die
-
-			case $(tc-arch) in
-				amd64)
-					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz \
-						|| die "Failed to unpack AMD64 GNAT bootstrap compiler"
-					;;
-				x86)
-					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz \
-						|| die "Failed to unpack x86 GNAT bootstrap compiler"
-					;;
-				arm)
-					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz \
-						|| die "Failed to unpack ARM GNAT bootstrap compiler"
-					;;
-				arm64)
-					unpack gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm64.tar.xz \
-						|| die "Failed to unpack ARM64 GNAT bootstrap compiler"
-					;;
-			esac
-
-			popd > /dev/null || die
-		fi
-	fi
 }
 
 #---->> src_prepare <<----
@@ -563,13 +502,6 @@ toolchain_src_prepare() {
 			EPATCH_MULTI_MSG="Applying uClibc patches ..." \
 			epatch "${WORKDIR}"/uclibc
 		fi
-		# add arm embedded-specific patches (currently only 6.4.0)
-		if [[ -n ${ARM_PATCH_VER} ]] ; then
-			guess_patch_type_in_dir "${WORKDIR}"/arm-patches/
-			EPATCH_MULTI_MSG="Applying Gentoo ARM patches ..." \
-			epatch "${WORKDIR}"/arm-patches/
-		fi
-
 	fi
 	do_gcc_HTB_patches
 	do_gcc_PIE_patches
@@ -918,46 +850,6 @@ toolchain_src_configure() {
 	fi
 	[[ -n ${CBUILD} ]] && confgcc+=( --build=${CBUILD} )
 
-	# Add variables we need to make the build find the bootstrap compiler.
-	# We only want to use the gnat-bootstrap compiler for stage 1 of bootstrap, this will build the necessary compilers,
-	# then stage 2 uses these compilers.
-	#
-	# We only want to use the gnat-bootstrap when we don't have an already installed GNAT compiler.
-	#    Note that gnatboot tarball will not be unpacked unless one of the
-	#    following is true: "use bootsrap" or gnatbind exists already.
-	# Also, we don't want to pollute the build env if we are using gnat
-	# tools from the existing toolchain.
-	if use_if_iuse ada ; then
-		local gnat_bin=$(gcc-config --get-bin-path)/gnat
-		echo
-		if (! [[ -e ${gnat_bin} ]] || use gnat-bootstrap) && ! is_crosscompile ; then
-			# We need to tell the system about our bootstrap compiler!
-			export GNATBOOT="${WORKDIR}/gnat_bootstrap/usr"
-			PATH="${GNATBOOT}/bin:${PATH}"
-			confgcc+=(
-				CC=${GNATBOOT}/bin/gcc
-				CXX=${GNATBOOT}/bin/g++
-				AS=as
-				LD=ld
-			)
-			einfo "Using bootstrap gnat compiler..."
-		elif ! is_crosscompile ; then
-			# TODO: This needs to be replaced with the *right* way
-			#       since *not* setting it does not work.
-#                       PATH="/usr/lib/portage/$EPYTHON/ebuild-helpers/xattr:/usr/lib/portage/$EPYTHON/ebuild-helpers:/usr/sbin:/usr/bin:/sbin:/bin:/usr/${CHOST}/gcc-bin/$(gcc -dumpversion)
-			confgcc+=(
-				CC=$(tc-getCC)
-				CXX=$(tc-getCXX)
-				AS=as
-				LD=ld
-			)
-			einfo "Using installed gnat compiler..."
-		fi
-		export PATH
-		einfo "PATH = ${PATH}"
-		echo
-	fi
-
 	confgcc+=(
 		--prefix="${PREFIX}"
 		--bindir="${BINPATH}"
@@ -984,7 +876,6 @@ toolchain_src_configure() {
 	### language options
 
 	local GCC_LANG="c"
-	is_ada && GCC_LANG+=",ada"
 	is_cxx && GCC_LANG+=",c++"
 	is_d   && GCC_LANG+=",d"
 	is_gcj && GCC_LANG+=",java"
@@ -1004,6 +895,9 @@ toolchain_src_configure() {
 	is_fortran && GCC_LANG+=",fortran"
 	is_f77 && GCC_LANG+=",f77"
 	is_f95 && GCC_LANG+=",f95"
+
+	# We do NOT want 'ADA support' in here!
+	# is_ada && GCC_LANG+=",ada"
 
 	confgcc+=( --enable-languages=${GCC_LANG} )
 
@@ -1086,7 +980,14 @@ toolchain_src_configure() {
 		case ${CTARGET} in
 		*-linux)		 needed_libc=no-fucking-clue;;
 		*-dietlibc)		 needed_libc=dietlibc;;
-		*-elf|*-eabi)		 needed_libc=newlib;;
+		*-elf|*-eabi)
+			needed_libc=newlib
+			# Bare-metal targets don't have access to clock_gettime()
+			# arm-none-eabi example: bug #589672
+			# But we explicitly do --enable-libstdcxx-time above.
+			# Undoing it here.
+			confgcc+=( --disable-libstdcxx-time )
+			;;
 		*-freebsd*)		 needed_libc=freebsd-lib;;
 		*-gnu*)			 needed_libc=glibc;;
 		*-klibc)		 needed_libc=klibc;;
@@ -1104,9 +1005,7 @@ toolchain_src_configure() {
 		x86_64-*-mingw*|\
 		*-w64-mingw*)	 needed_libc=mingw64-runtime;;
 		mingw*|*-mingw*) needed_libc=mingw-runtime;;
-		avr)             confgcc+=( --enable-shared --disable-threads )
-				 use ada && confgcc+=( --disable-libada );;
-
+		avr)			 confgcc+=( --enable-shared --disable-threads );;
 		esac
 		if [[ -n ${needed_libc} ]] ; then
 			local confgcc_no_libc=( --disable-shared )
@@ -1128,9 +1027,6 @@ toolchain_src_configure() {
 		fi
 
 		tc_version_is_at_least 4.2 && confgcc+=( --disable-bootstrap )
-
-		# workaround for crossdev "ambiguous libgcc_s.so" link error
-		use ada && confgcc+=( --disable-shared )
 	else
 		if tc-is-static-only ; then
 			confgcc+=( --disable-shared )
@@ -1159,11 +1055,7 @@ toolchain_src_configure() {
 		fi
 		;;
 	*-elf|*-eabi)
-		confgcc+=(
-			--with-newlib
-			--with-host-libstdcxx='-static-libgcc -Wl,-Bstatic,-lstdc++,-Bdynamic -lm'
-			--enable-libstdcxx-time=no
-		)
+		confgcc+=( --with-newlib )
 		;;
 	*-gnu*)
 		confgcc+=(
@@ -1219,35 +1111,23 @@ toolchain_src_configure() {
 		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
 		    . "${srcdir}"/config.gcc) &>/dev/null
 		then
-			use baremetal-arm || confgcc+=( --with-arch=${arm_arch} )
+			confgcc+=( --with-arch=${arm_arch} )
 		fi
 
-		if use baremetal-arm ; then
-			# this is the expected GNU ARM config for multiple cortex-M targets
-			# gcc 6.4 requires patches currently in ada-overlay
-			local multilib_list
-			if tc_version_is_at_least 6.4 ; then
-				multilib_list="armv6-m,armv7-m,armv7e-m,armv7-r,armv8-m.base,armv8-m.main"
-			elif tc_version_is_at_least 5.4 ; then
-				multilib_list="aprofile"
-			fi
-			confgcc+=( --with-multilib-list=${multilib_list} )
-		else
-			# Make default mode thumb for microcontroller classes #418209
-			[[ ${arm_arch} == *-m ]] && confgcc+=( --with-mode=thumb )
+		# Make default mode thumb for microcontroller classes #418209
+		[[ ${arm_arch} == *-m ]] && confgcc+=( --with-mode=thumb )
 
-			# Enable hardvfp
-			if [[ $(tc-is-softfloat) == "no" ]] && \
-			   [[ ${CTARGET} == armv[67]* ]] && \
-			   tc_version_is_at_least 4.5
-			then
-				# Follow the new arm hardfp distro standard by default
-				confgcc+=( --with-float=hard )
-				case ${CTARGET} in
-				armv6*) confgcc+=( --with-fpu=vfp ) ;;
-				armv7*) confgcc+=( --with-fpu=vfpv3-d16 ) ;;
-				esac
-			fi
+		# Enable hardvfp
+		if [[ $(tc-is-softfloat) == "no" ]] && \
+		   [[ ${CTARGET} == armv[67]* ]] && \
+		   tc_version_is_at_least 4.5
+		then
+			# Follow the new arm hardfp distro standard by default
+			confgcc+=( --with-float=hard )
+			case ${CTARGET} in
+			armv6*) confgcc+=( --with-fpu=vfp ) ;;
+			armv7*) confgcc+=( --with-fpu=vfpv3-d16 ) ;;
+			esac
 		fi
 		;;
 	mips)
@@ -1334,7 +1214,17 @@ toolchain_src_configure() {
 			if hardened_gcc_is_stable ssp; then
 				export gcc_cv_libc_provides_ssp=yes
 			fi
-			confgcc+=( --disable-libssp )
+			if use_if_iuse ssp; then
+				# On some targets USE="ssp -libssp" is an invalid
+				# configuration as target libc does not provide
+				# stack_chk_* functions. Do not disable libssp there.
+				case ${CTARGET} in
+					mingw*|*-mingw*) ewarn "Not disabling libssp" ;;
+					*) confgcc+=( --disable-libssp ) ;;
+				esac
+			else
+				confgcc+=( --disable-libssp )
+			fi
 		fi
 	fi
 
@@ -1344,6 +1234,10 @@ toolchain_src_configure() {
 
 	if in_iuse mpx ; then
 		confgcc+=( $(use_enable mpx libmpx) )
+	fi
+
+	if in_iuse systemtap ; then
+		confgcc+=( $(use_enable systemtap) )
 	fi
 
 	if in_iuse vtv ; then
@@ -1382,11 +1276,7 @@ toolchain_src_configure() {
 	fi
 
 	if tc_version_is_at_least 6.0 && in_iuse pie ; then
-		if [[ ${CTARGET} == avr* ]] ; then
-			confgcc+=( --disable-default-pie )
-		else
-			confgcc+=( $(use_enable pie default-pie) )
-		fi
+		confgcc+=( $(use_enable pie default-pie) )
 	fi
 
 	if tc_version_is_at_least 6.0 && in_iuse ssp ; then
@@ -1802,7 +1692,7 @@ toolchain_src_test() {
 toolchain_src_install() {
 	cd "${WORKDIR}"/build
 
-	# Do not allow symlinks in private gcc include dir as this can break the build
+	# Do allow symlinks in private gcc include dir as this can break the build
 	find gcc/include*/ -type l -delete
 
 	# Copy over the info pages.  We disabled their generation earlier, but the
@@ -1858,11 +1748,7 @@ toolchain_src_install() {
 	cd "${D}"${BINPATH}
 	# Ugh: we really need to auto-detect this list.
 	#      It's constantly out of date.
-	if in_iuse ada ; then
-		local gnat_extra_bins="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
-	fi
-
-	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${gnat_extra_bins} ; do
+	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ; do
 		# For some reason, g77 gets made instead of ${CTARGET}-g77...
 		# this should take care of that
 		if [[ -f ${x} ]] ; then
@@ -2004,11 +1890,6 @@ toolchain_src_install() {
 	export QA_EXECSTACK="usr/lib*/go/*/*.gox"
 	export QA_WX_LOAD="usr/lib*/go/*/*.gox"
 
-	if is_ada && ! tc_version_is_at_least 7 ; then
-		export QA_EXECSTACK="usr/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnat*"
-		export QA_WX_LOAD="usr/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnat*"
-	fi
-
 	# Disable RANDMMAP so PCH works. #301299
 	if tc_version_is_at_least 4.3 ; then
 		pax-mark -r "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/cc1"
@@ -2019,14 +1900,6 @@ toolchain_src_install() {
 	if is_gcj ; then
 		pax-mark -m "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/ecj1"
 		pax-mark -m "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/gij"
-	fi
-
-	if is_ada && ! tc_version_is_at_least 7 ; then
-		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatmake"
-		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatls"
-		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnat"
-		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatclean"
-		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatname"
 	fi
 }
 
@@ -2172,11 +2045,6 @@ create_gcc_env_entry() {
 	CTARGET="${CTARGET}"
 	GCC_SPECS="${gcc_specs_file}"
 	MULTIOSDIRS="${mosdirs}"
-	EOF
-
-	use ada && cat <<-EOF >> ${gcc_envd_file}
-	ADA_INCLUDE_PATH="${LIBPATH}/adainclude"
-	ADA_OBJECTS_PATH="${LIBPATH}/adalib"
 	EOF
 }
 
@@ -2414,7 +2282,7 @@ gcc-lang-supported() {
 
 is_ada() {
 	gcc-lang-supported ada || return 1
-	use cxx && use_if_iuse ada
+	use_if_iuse ada
 }
 
 is_cxx() {
