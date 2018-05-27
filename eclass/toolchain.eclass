@@ -1002,9 +1002,6 @@ toolchain_src_configure() {
 	is_f77 && GCC_LANG+=",f77"
 	is_f95 && GCC_LANG+=",f95"
 
-	# We do NOT want 'ADA support' in here!
-	# is_ada && GCC_LANG+=",ada"
-
 	confgcc+=( --enable-languages=${GCC_LANG} )
 
 	### general options
@@ -1111,7 +1108,8 @@ toolchain_src_configure() {
 		x86_64-*-mingw*|\
 		*-w64-mingw*)	 needed_libc=mingw64-runtime;;
 		mingw*|*-mingw*) needed_libc=mingw-runtime;;
-		avr)			 confgcc+=( --enable-shared --disable-threads );;
+		avr)             confgcc+=( --enable-shared --disable-threads )
+						 use ada && confgcc+=( --disable-libada );;
 		esac
 		if [[ -n ${needed_libc} ]] ; then
 			local confgcc_no_libc=( --disable-shared )
