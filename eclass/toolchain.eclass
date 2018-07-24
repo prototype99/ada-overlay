@@ -153,7 +153,7 @@ if [[ ${PN} != "kgcc64" && ${PN} != gcc-* ]] ; then
 	tc_version_is_at_least 4.8 && IUSE+=" graphite" IUSE_DEF+=( sanitize )
 	tc_version_is_between 4.9 8 && IUSE+=" cilk"
 	tc_version_is_at_least 4.9 && IUSE+=" +vtv"
-	tc_version_is_at_least 5.0 && IUSE+=" ada -gnat-bootstrap jit mpx"
+	tc_version_is_at_least 5.0 && IUSE+=" ada -baremetal-arm -gnat-bootstrap jit mpx"
 	tc_version_is_at_least 6.0 && IUSE+=" +pie +ssp +pch"
 	# systemtap is a gentoo-specific switch: bug #654748
 	tc_version_is_at_least 8.0 && IUSE+=" systemtap"
@@ -1246,23 +1246,35 @@ toolchain_src_configure() {
 		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
 		    . "${srcdir}"/config.gcc) &>/dev/null
 		then
-			confgcc+=( --with-arch=${arm_arch} )
+			use baremetal-arm || confgcc+=( --with-arch=${arm_arch} )
 		fi
 
-		# Make default mode thumb for microcontroller classes #418209
-		[[ ${arm_arch} == *-m ]] && confgcc+=( --with-mode=thumb )
+		if use baremetal-arm ; then
+			# this is the expected GNU ARM config for multiple cortex-M targets
+			# gcc 6.4 requires patches currently in ada-overlay
+			local multilib_list
+			if tc_version_is_at_least 6.4 ; then
+				multilib_list="armv6-m,armv7-m,armv7e-m,armv7-r,armv8-m.base,armv8-m.main"
+			elif tc_version_is_at_least 5.4 ; then
+				multilib_list="aprofile"
+			fi
+			confgcc+=( --with-multilib-list=${multilib_list} )
+		else
+			# Make default mode thumb for microcontroller classes #418209
+			[[ ${arm_arch} == *-m ]] && confgcc+=( --with-mode=thumb )
 
-		# Enable hardvfp
-		if [[ $(tc-is-softfloat) == "no" ]] && \
-		   [[ ${CTARGET} == armv[67]* ]] && \
-		   tc_version_is_at_least 4.5
-		then
-			# Follow the new arm hardfp distro standard by default
-			confgcc+=( --with-float=hard )
-			case ${CTARGET} in
-			armv6*) confgcc+=( --with-fpu=vfp ) ;;
-			armv7*) confgcc+=( --with-fpu=vfpv3-d16 ) ;;
-			esac
+			# Enable hardvfp
+			if [[ $(tc-is-softfloat) == "no" ]] && \
+			   [[ ${CTARGET} == armv[67]* ]] && \
+			   tc_version_is_at_least 4.5
+			then
+				# Follow the new arm hardfp distro standard by default
+				confgcc+=( --with-float=hard )
+				case ${CTARGET} in
+					armv6*) confgcc+=( --with-fpu=vfp ) ;;
+					armv7*) confgcc+=( --with-fpu=vfpv3-d16 ) ;;
+				esac
+			fi
 		fi
 		;;
 	mips)
