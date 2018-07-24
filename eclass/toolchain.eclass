@@ -1136,7 +1136,8 @@ toolchain_src_configure() {
 		x86_64-*-mingw*|\
 		*-w64-mingw*)	 needed_libc=mingw64-runtime;;
 		mingw*|*-mingw*) needed_libc=mingw-runtime;;
-		avr)			 confgcc+=( --enable-shared --disable-threads );;
+		avr)		 confgcc+=( --enable-shared --disable-threads )
+					use ada && confgcc+=( --disable-libada );;
 		esac
 		if [[ -n ${needed_libc} ]] ; then
 			local confgcc_no_libc=( --disable-shared )
