@@ -2046,6 +2046,14 @@ toolchain_src_install() {
 		pax-mark -m "${D}${PREFIX}/libexec/gcc/${CTARGET}/${GCC_CONFIG_VER}/ecj1"
 		pax-mark -m "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/gij"
 	fi
+
+	if is_ada && ! tc_version_is_at_least 7 ; then
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatmake"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatls"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnat"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatclean"
+		pax-mark -mEp "${D}${PREFIX}/${CTARGET}/gcc-bin/${GCC_CONFIG_VER}/${CTARGET}-gnatname"
+	fi
 }
 
 # Move around the libs to the right location.  For some reason,
