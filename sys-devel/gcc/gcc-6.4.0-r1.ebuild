@@ -3,12 +3,12 @@
 
 EAPI="5"
 
-PATCH_VER="1.1"
-#UCLIBC_VER="1.0"
+PATCH_VER="1.3"
+UCLIBC_VER="1.0"
 
 inherit toolchain
 
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~amd64-fbsd ~x86-fbsd"
+KEYWORDS="alpha amd64 arm arm64 hppa ia64 ~m68k ~mips ppc ppc64 ~s390 ~sh sparc x86 ~amd64-fbsd ~x86-fbsd"
 
 RDEPEND=""
 DEPEND="${RDEPEND}
@@ -21,7 +21,4 @@ fi
 
 src_prepare() {
 	toolchain_src_prepare
-
-	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch \
-		"${FILESDIR}"/${PV}/${P}-fix-linux-platform-def.patch
 }

@@ -1,14 +1,15 @@
-# Copyright 1999-2017 Gentoo Foundation
+# Copyright 1999-2018 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI="4"
+EAPI="5"
 
-PATCH_VER="1.0"
-#UCLIBC_VER="1.0"
+PATCH_VER="1.4"
+UCLIBC_VER="1.0"
 
 inherit toolchain
 
-KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~amd64-fbsd ~x86-fbsd"
+#unkeyworded yet. not enough changes to warant a revbump
+#KEYWORDS="~alpha ~amd64 ~arm ~arm64 ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~amd64-fbsd ~x86-fbsd"
 
 RDEPEND=""
 DEPEND="${RDEPEND}
@@ -21,8 +22,4 @@ fi
 
 src_prepare() {
 	toolchain_src_prepare
-
-	epatch "${FILESDIR}"/0001-Remove-P-macro-gnat-makefile.patch
-
-	use ada && use ssp && append-flags -fstack-check=no
 }
