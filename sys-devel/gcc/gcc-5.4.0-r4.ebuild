@@ -1,9 +1,9 @@
-# Copyright 1999-2017 Gentoo Foundation
+# Copyright 1999-2018 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI="4"
+EAPI="5"
 
-PATCH_VER="1.4"
+PATCH_VER="1.8"
 UCLIBC_VER="1.0"
 
 # Hardened gcc 4 stuff
@@ -21,7 +21,7 @@ SSP_UCLIBC_STABLE="x86 amd64 mips ppc ppc64 arm"
 
 inherit toolchain
 
-KEYWORDS="alpha amd64 arm arm64 hppa ia64 ~m68k ~mips ppc ppc64 ~s390 ~sh ~sparc x86 ~amd64-fbsd ~x86-fbsd"
+KEYWORDS="alpha amd64 arm arm64 hppa ia64 m68k ~mips ppc ppc64 s390 sh sparc x86 ~amd64-fbsd ~x86-fbsd"
 
 RDEPEND=""
 DEPEND="${RDEPEND}
@@ -41,12 +41,4 @@ src_prepare() {
 	is_crosscompile && EPATCH_EXCLUDE+=" 05_all_gcc-spec-env.patch"
 
 	toolchain_src_prepare
-
-	epatch "${FILESDIR}"/${PV}/${P}-hardened-adabuild.patch \
-		"${FILESDIR}"/${PN}-4.9.4-fix-qa-warning-add-missing-include.patch \
-		"${FILESDIR}"/${PN}-fixes-for-glibc-2.26.patch
-
-	is_crosscompile && epatch "${FILESDIR}"/${PV}/${P}-Document-with-multilib-list-for-arm-targets.patch \
-		"${FILESDIR}"/${PV}/ARM-2-3-Error-out-for-incompatible-ARM-multilibs.patch \
-		"${FILESDIR}"/${PV}/ARM-3-3-Add-multilib-support-for-bare-metal-ARM-architectures.patch
 }

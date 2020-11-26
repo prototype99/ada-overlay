@@ -165,15 +165,15 @@ SLOT="${GCC_CONFIG_VER}"
 
 # When using Ada, use this gnat-bootstrap compiler to build, only when there is no pre-existing Ada compiler.
 if in_iuse ada; then
-		# If first time build, we need to bootstrap this with a working gnat.
-		# A newer version of GNAT should build an older version, but vice-versa
-		# depends on native vs cross and which versions, etc. Version 4.9 can
-		# definitely build 5.1.0 (and up to 5.4.0 with small patch) while 5.4
-		# can build up through 6.4, again, with a small patch, but 6.3 only
-		# needs -fstack-check=no (go figure...)
-		tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
-		tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
-		tc_version_is_at_least 7.0 && GNAT_BOOTSTRAP_VERSION="7.2"
+	# If first time build, we need to bootstrap this with a working gnat.
+	# A newer version of GNAT should build an older version, but vice-versa
+	# depends on native vs cross and which versions, etc. Version 4.9 can
+	# definitely build 5.1.0 (and up to 5.4.0 with small patch) while 5.4
+	# can build up through 6.4, again, with a small patch, but 6.3 only
+	# needs -fstack-check=no (go figure...)
+	tc_version_is_at_least 5.0 && GNAT_BOOTSTRAP_VERSION="5.4"
+	tc_version_is_at_least 6.0 && GNAT_BOOTSTRAP_VERSION="6.4"
+	tc_version_is_at_least 7.0 && GNAT_BOOTSTRAP_VERSION="7.2"
 fi
 
 #---->> DEPEND <<----
@@ -333,6 +333,14 @@ gentoo_urls() {
 #			ten Brugge's bounds-checking patches. If you want to use a patch
 #			for an older gcc version with a new gcc, make sure you set
 #			HTB_GCC_VER to that version of gcc.
+#
+#	CYGWINPORTS_GITREV
+#			If set, this variable signals that we should apply additional patches
+#			maintained by upstream Cygwin developers at github/cygwinports/gcc,
+#			using the specified git commit id there.  The list of patches to
+#			apply is extracted from gcc.cygport, maintained there as well.
+#			This is done for compilers running on Cygwin, not for cross compilers
+#			with a Cygwin target.
 get_gcc_src_uri() {
 	export PATCH_GCC_VER=${PATCH_GCC_VER:-${GCC_RELEASE_VER}}
 	export UCLIBC_GCC_VER=${UCLIBC_GCC_VER:-${PATCH_GCC_VER}}
@@ -399,9 +407,14 @@ get_gcc_src_uri() {
 		fi
 	fi
 
+	# Cygwin patches from https://github.com/cygwinports/gcc
+	[[ -n ${CYGWINPORTS_GITREV} ]] && \
+		GCC_SRC_URI+=" elibc_Cygwin? ( https://github.com/cygwinports/gcc/archive/${CYGWINPORTS_GITREV}.tar.gz
+			-> gcc-cygwinports-${CYGWINPORTS_GITREV}.tar.gz )"
+
 	# TODO: Add bootstraps for arm64/mips/ppc/other arches.
 	if in_iuse ada; then
-		GCC_SRC_URI+=" amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
+		GCC_SRC_URI+="  amd64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-amd64.tar.xz )
 				arm? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm.tar.xz )
 				arm64? ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-arm64.tar.xz )
 				x86?   ( https://dev.gentoo.org/~nerdboy/files/gnatboot-${GNAT_BOOTSTRAP_VERSION}-i686.tar.xz )"
@@ -515,6 +528,8 @@ gcc_quick_unpack() {
 
 	use_if_iuse boundschecking && unpack "bounds-checking-gcc-${HTB_GCC_VER}-${HTB_VER}.patch.bz2"
 
+	[[ -n ${CYGWINPORTS_GITREV} ]] && use elibc_Cygwin && unpack "gcc-cygwinports-${CYGWINPORTS_GITREV}.tar.gz"
+
 	popd > /dev/null
 
 	# Unpack the Ada bootstrap if we're using it.
@@ -570,6 +585,7 @@ toolchain_src_prepare() {
 	fi
 	do_gcc_HTB_patches
 	do_gcc_PIE_patches
+	do_gcc_CYGWINPORTS_patches
 	epatch_user
 
 	if ( tc_version_is_at_least 4.8.2 || use_if_iuse hardened ) && ! use vanilla ; then
@@ -708,6 +724,18 @@ do_gcc_PIE_patches() {
 	fi
 
 	BRANDING_GCC_PKGVERSION="${BRANDING_GCC_PKGVERSION}, pie-${PIE_VER}"
+}
+
+do_gcc_CYGWINPORTS_patches() {
+	[[ -n ${CYGWINPORTS_GITREV} ]] || return 0
+	use elibc_Cygwin || return 0
+
+	local -a patches
+	local p d="${WORKDIR}/gcc-${CYGWINPORTS_GITREV}"
+	readarray -t patches < <(sed -e '1,/PATCH_URI="/d;/"/,$d' < "${d}"/gcc.cygport)
+	for p in ${patches[*]}; do
+		epatch "${d}/${p}"
+	done
 }
 
 # configure to build with the hardened GCC specs as the default
@@ -1108,8 +1136,8 @@ toolchain_src_configure() {
 		x86_64-*-mingw*|\
 		*-w64-mingw*)	 needed_libc=mingw64-runtime;;
 		mingw*|*-mingw*) needed_libc=mingw-runtime;;
-		avr)             confgcc+=( --enable-shared --disable-threads )
-						 use ada && confgcc+=( --disable-libada );;
+		avr)		 confgcc+=( --enable-shared --disable-threads )
+					use ada && confgcc+=( --disable-libada );;
 		esac
 		if [[ -n ${needed_libc} ]] ; then
 			local confgcc_no_libc=( --disable-shared )
@@ -1141,7 +1169,7 @@ toolchain_src_configure() {
 			confgcc+=( --enable-shared )
 		fi
 		case ${CHOST} in
-		mingw*|*-mingw*|*-cygwin)
+		mingw*|*-mingw*)
 			confgcc+=( --enable-threads=win32 ) ;;
 		*)
 			confgcc+=( --enable-threads=posix ) ;;
@@ -1216,7 +1244,7 @@ toolchain_src_configure() {
 		[[ ${arm_arch} == armv7? ]] && arm_arch=${arm_arch/7/7-}
 		# See if this is a valid --with-arch flag
 		if (srcdir=${S}/gcc target=${CTARGET} with_arch=${arm_arch};
-			. "${srcdir}"/config.gcc) &>/dev/null
+		    . "${srcdir}"/config.gcc) &>/dev/null
 		then
 			use baremetal-arm || confgcc+=( --with-arch=${arm_arch} )
 		fi
@@ -1237,8 +1265,8 @@ toolchain_src_configure() {
 
 			# Enable hardvfp
 			if [[ $(tc-is-softfloat) == "no" ]] && \
-				   [[ ${CTARGET} == armv[67]* ]] && \
-				   tc_version_is_at_least 4.5
+			   [[ ${CTARGET} == armv[67]* ]] && \
+			   tc_version_is_at_least 4.5
 			then
 				# Follow the new arm hardfp distro standard by default
 				confgcc+=( --with-float=hard )
@@ -1294,10 +1322,12 @@ toolchain_src_configure() {
 
 	### library options
 
-	if ! is_gcj ; then
-		confgcc+=( --disable-libgcj )
-	elif use awt ; then
-		confgcc+=( --enable-java-awt=gtk )
+	if tc_version_is_between 3.0 7.0 ; then
+		if ! is_gcj ; then
+			confgcc+=( --disable-libgcj )
+		elif use awt ; then
+			confgcc+=( --enable-java-awt=gtk )
+		fi
 	fi
 
 	if tc_version_is_at_least 4.2 ; then
@@ -1839,9 +1869,9 @@ toolchain_src_install() {
 	S="${WORKDIR}"/build emake -j1 DESTDIR="${D}" install || die
 
 	# Punt some tools which are really only useful while building gcc
-	find "${D}" -name install-tools -prune -type d -exec rm -rf "{}" \;
+	find "${ED}" -name install-tools -prune -type d -exec rm -rf "{}" \;
 	# This one comes with binutils
-	find "${D}" -name libiberty.a -delete
+	find "${ED}" -name libiberty.a -delete
 
 	# Move the libraries to the proper location
 	gcc_movelibs
@@ -1850,7 +1880,7 @@ toolchain_src_install() {
 	if ! is_crosscompile ; then
 		local EXEEXT
 		eval $(grep ^EXEEXT= "${WORKDIR}"/build/gcc/config.log)
-		[[ -r ${D}${BINPATH}/gcc${EXEEXT} ]] || die "gcc not found in ${D}"
+		[[ -r ${D}${BINPATH}/gcc${EXEEXT} ]] || die "gcc not found in ${ED}"
 	fi
 
 	dodir /etc/env.d/gcc
@@ -1871,7 +1901,7 @@ toolchain_src_install() {
 		local gnat_extra_bins="gnat gnatbind gnatchop gnatclean gnatfind gnatkr gnatlink gnatls gnatmake gnatname gnatprep gnatxref"
 	fi
 
-	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ${gnat_extra_bins} ; do
+	for x in cpp gcc g++ c++ gcov g77 gcj gcjh gfortran gccgo ; do
 		# For some reason, g77 gets made instead of ${CTARGET}-g77...
 		# this should take care of that
 		if [[ -f ${x} ]] ; then
@@ -1916,13 +1946,13 @@ toolchain_src_install() {
 
 	cd "${S}"
 	if is_crosscompile; then
-		rm -rf "${ED}"usr/share/{man,info}
+		rm -rf "${ED}"/usr/share/{man,info}
 		rm -rf "${D}"${DATAPATH}/{man,info}
 	else
 		if tc_version_is_at_least 3.0 ; then
 			local cxx_mandir=$(find "${WORKDIR}/build/${CTARGET}/libstdc++-v3" -name man)
 			if [[ -d ${cxx_mandir} ]] ; then
-				cp -r "${cxx_mandir}"/man? "${D}/${DATAPATH}"/man/
+				cp -r "${cxx_mandir}"/man? "${D}${DATAPATH}"/man/
 			fi
 		fi
 		has noinfo ${FEATURES} \
@@ -1933,7 +1963,7 @@ toolchain_src_install() {
 			|| prepman "${DATAPATH#${EPREFIX}}"
 	fi
 	# prune empty dirs left behind
-	find "${D}" -depth -type d -delete 2>/dev/null
+	find "${ED}" -depth -type d -delete 2>/dev/null
 
 	# install testsuite results
 	if use regression-test; then
@@ -1973,7 +2003,7 @@ toolchain_src_install() {
 	# libvtv.la: gcc itself handles linkage correctly.
 	# lib*san.la: Sanitizer linkage is handled internally by gcc, and they
 	# do not support static linking. #487550 #546700
-	find "${D}/${LIBPATH}" \
+	find "${D}${LIBPATH}" \
 		'(' \
 			-name libstdc++.la -o \
 			-name libstdc++fs.la -o \
@@ -2052,7 +2082,7 @@ gcc_movelibs() {
 	# code to run on the target.
 	if tc_version_is_at_least 5 && is_crosscompile ; then
 		dodir "${HOSTLIBPATH#${EPREFIX}}"
-		mv "${ED}"usr/$(get_libdir)/libcc1* "${D}${HOSTLIBPATH}" || die
+		mv "${ED}"/usr/$(get_libdir)/libcc1* "${D}${HOSTLIBPATH}" || die
 	fi
 
 	# For all the libs that are built for CTARGET, move them into the
@@ -2102,7 +2132,7 @@ gcc_movelibs() {
 	for FROMDIR in ${removedirs} ; do
 		rmdir "${D}"${FROMDIR} >& /dev/null
 	done
-	find -depth "${D}" -type d -exec rmdir {} + >& /dev/null
+	find -depth "${ED}" -type d -exec rmdir {} + >& /dev/null
 }
 
 # make sure the libtool archives have libdir set to where they actually
@@ -2254,7 +2284,7 @@ gcc_slot_java() {
 
 toolchain_pkg_postinst() {
 	do_gcc_config
-	if [[ ${ROOT} == / && -f ${EPREFIX}/usr/share/eselect/modules/compiler-shadow.eselect ]] ; then
+	if [[ ! ${ROOT%/} && -f ${EPREFIX}/usr/share/eselect/modules/compiler-shadow.eselect ]] ; then
 		eselect compiler-shadow update all
 	fi
 
@@ -2269,17 +2299,17 @@ toolchain_pkg_postinst() {
 		echo
 
 		# Clean up old paths
-		rm -f "${EROOT}"*/rcscripts/awk/fixlafiles.awk "${EROOT}"sbin/fix_libtool_files.sh
-		rmdir "${EROOT}"*/rcscripts{/awk,} 2>/dev/null
+		rm -f "${EROOT%/}"/*/rcscripts/awk/fixlafiles.awk "${EROOT%/}"/sbin/fix_libtool_files.sh
+		rmdir "${EROOT%/}"/*/rcscripts{/awk,} 2>/dev/null
 
-		mkdir -p "${EROOT}"usr/{share/gcc-data,sbin,bin}
+		mkdir -p "${EROOT%/}"/usr/{share/gcc-data,sbin,bin}
 		# DATAPATH has EPREFIX already, use ROOT with it
-		cp "${ROOT}${DATAPATH}"/fixlafiles.awk "${EROOT}"usr/share/gcc-data/ || die
-		cp "${ROOT}${DATAPATH}"/fix_libtool_files.sh "${EROOT}"usr/sbin/ || die
+		cp "${ROOT%/}${DATAPATH}"/fixlafiles.awk "${EROOT%/}"/usr/share/gcc-data/ || die
+		cp "${ROOT%/}${DATAPATH}"/fix_libtool_files.sh "${EROOT%/}"/usr/sbin/ || die
 
 		# Since these aren't critical files and portage sucks with
 		# handling of binpkgs, don't require these to be found
-		cp "${ROOT}${DATAPATH}"/c{89,99} "${EROOT}"usr/bin/ 2>/dev/null
+		cp "${ROOT%/}${DATAPATH}"/c{89,99} "${EROOT%/}"/usr/bin/ 2>/dev/null
 	fi
 
 	if use regression-test ; then
@@ -2295,7 +2325,7 @@ toolchain_pkg_postinst() {
 }
 
 toolchain_pkg_postrm() {
-	if [[ ${ROOT} == / && -f ${EPREFIX}/usr/share/eselect/modules/compiler-shadow.eselect ]] ; then
+	if [[ ! ${ROOT%/} && -f ${EPREFIX}/usr/share/eselect/modules/compiler-shadow.eselect ]] ; then
 		eselect compiler-shadow clean all
 	fi
 
@@ -2306,16 +2336,16 @@ toolchain_pkg_postrm() {
 
 	# clean up the cruft left behind by cross-compilers
 	if is_crosscompile ; then
-		if [[ -z $(ls "${EROOT}"etc/env.d/gcc/${CTARGET}* 2>/dev/null) ]] ; then
-			rm -f "${EROOT}"etc/env.d/gcc/config-${CTARGET}
-			rm -f "${EROOT}"etc/env.d/??gcc-${CTARGET}
-			rm -f "${EROOT}"usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64}
+		if [[ -z $(ls "${EROOT%/}"/etc/env.d/gcc/${CTARGET}* 2>/dev/null) ]] ; then
+			rm -f "${EROOT%/}"/etc/env.d/gcc/config-${CTARGET}
+			rm -f "${EROOT%/}"/etc/env.d/??gcc-${CTARGET}
+			rm -f "${EROOT%/}"/usr/bin/${CTARGET}-{gcc,{g,c}++}{,32,64}
 		fi
 		return 0
 	fi
 
 	# ROOT isnt handled by the script
-	[[ ${ROOT} != "/" ]] && return 0
+	[[ ${ROOT%/} ]] && return 0
 
 	if [[ ! -e ${LIBPATH}/libstdc++.so ]] ; then
 		# make sure the profile is sane during same-slot upgrade #289403
@@ -2348,7 +2378,7 @@ do_gcc_config() {
 		[[ -n ${current_specs} ]] && use_specs=-${current_specs}
 
 		if [[ -n ${use_specs} ]] && \
-		   [[ ! -e ${ROOT}/etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}${use_specs} ]]
+		   [[ ! -e ${EROOT%/}/etc/env.d/gcc/${CTARGET}-${GCC_CONFIG_VER}${use_specs} ]]
 		then
 			ewarn "The currently selected specs-specific gcc config,"
 			ewarn "${current_specs}, doesn't exist anymore. This is usually"
